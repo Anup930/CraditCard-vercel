@@ -1,0 +1,602 @@
+/* ============================================================
+   ERA AI — Grand Full-Screen Executive Co-Pilot & App Controller
+   High-Resolution Enterprise Cockpit Layout
+   ============================================================ */
+
+/* Floating Action Launcher (FAB - Bottom Right) */
+#era-ai-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9990;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-radius: 100px;
+    background: linear-gradient(135deg, #3a0ca3 0%, #4361ee 50%, #7209b7 100%);
+    color: #ffffff;
+    font-family: var(--font-family, 'Inter', sans-serif);
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 10px 25px -5px rgba(67, 97, 238, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+}
+
+#era-ai-fab:hover {
+    transform: translateY(-3px) scale(1.03);
+    box-shadow: 0 16px 35px -5px rgba(114, 9, 183, 0.6), 0 0 20px rgba(67, 97, 238, 0.4);
+}
+
+.era-fab-icon-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+}
+
+.era-fab-icon-wrap i {
+    font-size: 1.15rem;
+    color: #ffd166;
+    animation: eraPulseGlow 2.5s infinite ease-in-out;
+}
+
+.era-fab-pulse {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: rgba(255, 209, 102, 0.4);
+    animation: eraRing 2.5s infinite;
+}
+
+.era-badge-pill {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Full-Screen Modal Overlay */
+#era-ai-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(10, 15, 29, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    transition: opacity 0.25s ease-out;
+    padding: 20px;
+}
+
+#era-ai-overlay.era-hidden {
+    display: none !important;
+}
+
+/* Executive Full-Screen Cockpit Window */
+#era-ai-window {
+    width: 95vw;
+    max-width: 1400px;
+    height: 92vh;
+    max-height: 960px;
+    background: #0b1120;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 22px;
+    box-shadow: 0 35px 80px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: var(--font-family, 'Inter', sans-serif);
+    animation: eraScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Header */
+.era-header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.era-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.era-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #4361ee, #7209b7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffd166;
+    font-size: 1.3rem;
+    box-shadow: 0 6px 16px rgba(67, 97, 238, 0.4);
+}
+
+.era-title-box h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #f8fafc;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.2px;
+}
+
+.era-subtitle {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.era-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 10px #10b981;
+}
+
+.era-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.era-btn-icon {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    padding: 7px 12px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.era-btn-icon:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+.era-close-btn {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+.era-close-btn:hover {
+    background: rgba(239, 68, 68, 0.35);
+    color: #ffffff;
+}
+
+/* Cockpit Workspace (2 Columns) */
+.era-workspace {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* Left Sidebar Panel: Live Telemetry & Control Center */
+.era-side-panel {
+    width: 340px;
+    background: #0f172a;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 18px;
+    gap: 18px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.era-telemetry-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+    border: 1px solid rgba(67, 97, 238, 0.25);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.era-telemetry-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #93c5fd;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.era-telemetry-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.era-telemetry-stat {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.era-stat-label {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.era-stat-val {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #f8fafc;
+    margin-top: 2px;
+}
+
+.era-progress-wrap {
+    margin-top: 4px;
+}
+
+.era-progress-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+
+.era-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+    border-radius: 10px;
+    transition: width 0.4s ease;
+}
+
+/* Category Quick Actions in Left Panel */
+.era-panel-section-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.era-side-action-btn {
+    width: 100%;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: #cbd5e1;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 9px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s;
+    margin-bottom: 6px;
+}
+
+.era-side-action-btn:hover {
+    background: rgba(67, 97, 238, 0.2);
+    border-color: rgba(67, 97, 238, 0.4);
+    color: #93c5fd;
+    transform: translateX(3px);
+}
+
+.era-side-action-btn i {
+    font-size: 0.9rem;
+    width: 18px;
+    text-align: center;
+}
+
+/* Right Main Panel: Conversational Workspace */
+.era-main-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #070b14;
+    overflow: hidden;
+}
+
+/* Messages Feed */
+.era-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.era-msg {
+    display: flex;
+    gap: 14px;
+    max-width: 85%;
+    animation: eraFadeIn 0.25s ease-out;
+}
+
+.era-msg-user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.era-msg-ai {
+    align-self: flex-start;
+}
+
+.era-msg-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.era-msg-ai .era-msg-avatar {
+    background: linear-gradient(135deg, #4361ee, #7209b7);
+    color: #ffd166;
+    box-shadow: 0 4px 10px rgba(67, 97, 238, 0.35);
+}
+
+.era-msg-user .era-msg-avatar {
+    background: #334155;
+    color: #f8fafc;
+}
+
+.era-msg-bubble {
+    padding: 14px 18px;
+    border-radius: 16px;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    word-break: break-word;
+}
+
+.era-msg-user .era-msg-bubble {
+    background: linear-gradient(135deg, #4361ee 0%, #3a56d4 100%);
+    color: #ffffff;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 4px 14px rgba(67, 97, 238, 0.3);
+}
+
+.era-msg-ai .era-msg-bubble {
+    background: #131c31;
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.era-msg-bubble p {
+    margin-bottom: 8px;
+}
+.era-msg-bubble p:last-child {
+    margin-bottom: 0;
+}
+.era-msg-bubble strong {
+    color: #67e8f9;
+}
+.era-msg-bubble ul, .era-msg-bubble ol {
+    margin: 8px 0 8px 22px;
+}
+.era-msg-bubble li {
+    margin-bottom: 6px;
+}
+.era-msg-bubble code {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #fde047;
+}
+
+/* Action Execution Card inside AI bubble */
+.era-action-card {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(67, 97, 238, 0.4);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.era-action-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    color: #93c5fd;
+    font-size: 0.88rem;
+}
+
+.era-action-btn {
+    background: linear-gradient(135deg, #4361ee, #7209b7);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(67, 97, 238, 0.3);
+}
+
+.era-action-btn:hover {
+    background: linear-gradient(135deg, #3a56d4, #5c0894);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(114, 9, 183, 0.45);
+}
+
+/* Big Input Container */
+.era-input-container {
+    padding: 16px 24px;
+    background: #0f172a;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.era-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    padding: 8px 14px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.era-input-wrap:focus-within {
+    border-color: #4361ee;
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.3);
+}
+
+#era-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f8fafc;
+    font-size: 0.94rem;
+    font-family: inherit;
+    resize: none;
+    max-height: 90px;
+    padding: 6px 4px;
+}
+
+#era-input::placeholder {
+    color: #64748b;
+}
+
+.era-input-btn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1.05rem;
+}
+
+.era-input-btn:hover {
+    color: #f8fafc;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#era-mic-btn.listening {
+    color: #ef4444;
+    animation: eraPulseMic 1.2s infinite ease-in-out;
+}
+
+#era-send-btn {
+    background: linear-gradient(135deg, #4361ee, #7209b7);
+    color: #ffffff;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+}
+
+#era-send-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Animations */
+@keyframes eraScaleUp {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes eraPulseGlow {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(255, 209, 102, 0.4)); }
+    50% { transform: scale(1.1); filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.9)); }
+}
+
+@keyframes eraRing {
+    0% { transform: scale(0.9); opacity: 0.8; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes eraFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes eraPulseMic {
+    0%, 100% { transform: scale(1); background: rgba(239, 68, 68, 0.2); }
+    50% { transform: scale(1.15); background: rgba(239, 68, 68, 0.45); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    .era-workspace {
+        flex-direction: column;
+    }
+    .era-side-panel {
+        width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+}
