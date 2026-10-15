@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/era-ai.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💳</text></svg>">
 </head>
 <body>
@@ -99,6 +100,10 @@
                 <a href="#" class="nav-item" data-page="downlodedash">
                     <i class="fas fa-file-pdf"></i><span>Downlode Dashboard</span>
                 </a>
+                <a href="javascript:void(0)" class="nav-item" onclick="EraAI.toggle()" style="background:rgba(114,9,183,0.08);border-left:3px solid #7209b7;">
+                    <i class="fas fa-brain" style="color:#7209b7;"></i><span style="font-weight:600;">ERA AI Co-Pilot</span>
+                    <span class="badge" style="background:#7209b7;color:#fff;font-size:0.65rem;margin-left:auto;padding:2px 6px;">AI</span>
+                </a>
 
                 <div class="nav-section-label">ACCOUNT</div>
                 <a href="javascript:void(0)" class="nav-item" onclick="Auth.showChangePasswordModal()">
@@ -144,6 +149,9 @@
                         </span>
                         <button id="btn-cloud-sync" class="btn btn-sm" style="display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;padding:5px 12px;border-radius:100px;background:#e8f0fe;color:#1a73e8;border:1px solid #c2e7ff;cursor:pointer;" title="Click to sync latest data with Google Sheets">
                             <i class="fas fa-sync-alt" id="sync-icon"></i> <span id="sync-text">Cloud Sync</span>
+                        </button>
+                        <button id="btn-era-ai-top" class="btn btn-sm" onclick="EraAI.toggle()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;padding:5px 12px;border-radius:100px;background:linear-gradient(135deg, #3a0ca3 0%, #7209b7 100%);color:#fff;border:1px solid #c084fc;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(114,9,183,0.35);" title="Open ERA AI Co-Pilot [Alt + A]">
+                            <i class="fas fa-brain" style="color:#ffd166;"></i> <span>ERA AI</span>
                         </button>
                         <button id="btn-show-updates" class="btn btn-sm" onclick="App.showUpdateModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;padding:5px 12px;border-radius:100px;background:#f3e8ff;color:#7209b7;border:1px solid #d8b4fe;cursor:pointer;font-weight:600;" title="View System Updates & Client Queries Log">
                             <i class="fas fa-bolt"></i> <span>⚡ What's New (v2.1)</span>
@@ -249,6 +257,7 @@
     <script src="js/users.js"></script>
     <script src="js/logs.js"></script>
     <script src="js/data_import.js"></script>
+    <script src="js/era-ai.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
