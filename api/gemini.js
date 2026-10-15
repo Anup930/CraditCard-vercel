@@ -1,11 +1,11 @@
 // ============================================================
 // VERCEL SERVERLESS FUNCTION: /api/gemini
-// Securely proxies requests to Google Gemini using GEMINI_API_KEY
-// from Vercel Environment Variables (Zero client-side leak)
+// Standard CommonJS handler compatible with all Vercel Node runtimes
+// Securely proxies to Google Gemini using process.env.GEMINI_API_KEY
 // ============================================================
 
-export default async function handler(req, res) {
-    // Set CORS headers
+module.exports = async function handler(req, res) {
+    // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -24,24 +24,33 @@ export default async function handler(req, res) {
     }
 
     // 1. Get GEMINI_API_KEY from Vercel Environment Variables
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = (process.env.GEMINI_API_KEY || process.env.gemini_api_key || '').trim();
     if (!apiKey) {
         return res.status(500).json({
-            error: 'GEMINI_API_KEY is missing in Vercel Environment Variables. Please set GEMINI_API_KEY in your Vercel Project Settings > Environment Variables.'
+            error: 'GEMINI_API_KEY is not configured in Vercel Environment Variables. Please ensure GEMINI_API_KEY is added under Vercel Settings > Environment Variables and redeploy.'
         });
     }
 
     try {
-        const { prompt, context } = req.body || {};
+        // Handle body whether parsed as object or passed as JSON string
+        let body = req.body;
+        if (typeof body === 'string') {
+            try { body = JSON.parse(body); } catch(e) {}
+        }
+        const { prompt, context } = body || {};
+
         if (!prompt) {
-            return res.status(400).json({ error: 'Missing prompt in request body' });
+            return res.status(400).json({ error: 'Missing prompt in request' });
         }
 
         const summary = context?.database_summary || {};
+        const allCards = context?.all_cards || [];
+
         const systemInstruction = `You are ERA AI, the executive financial co-pilot of Credit Card Management System (CCMS) for Gretex Group.
 You have direct, real-time access to the user's COMPLETE credit card database across all entities and banking partners.
+
 Current Live Portfolio Database Snapshot:
-- Total Cards Tracked: ${summary.total_cards || context?.all_cards?.length || 0} (${summary.active_cards || 0} Active)
+- Total Cards Tracked: ${summary.total_cards || allCards.length || 0} (${summary.active_cards || 0} Active)
 - Total Sanctioned Credit Limit: ₹${(summary.total_sanctioned_limit || 0).toLocaleString('en-IN')}
 - Total Current Balance (Outstanding): ₹${(summary.total_current_balance || 0).toLocaleString('en-IN')}
 - Total Available Credit Headroom: ₹${(summary.total_available_credit || 0).toLocaleString('en-IN')}
@@ -56,37 +65,50 @@ ${JSON.stringify(context || {}, null, 2)}
 Instructions:
 1. Provide accurate, professional, concise, executive-level financial analysis using the live database snapshot above.
 2. Format financial figures in Indian Rupees (₹) with standard Indian comma grouping (e.g. ₹1,72,20,999).
-3. Use markdown with bullet points, bold highlights, and clean structure.
-4. If asked about specific cards, check the 'all_cards' list (HDFC, ICICI, SBI, Axis, HSBC, etc.) and report exact limits, balances, and due dates.
-5. If asked about spends, refer to 'category_wise_spending' and 'recent_transactions_sample'.
-6. If asked to perform app actions (navigate to a page, sync cloud, export database, record payment), inform the user that ERA AI can execute those actions directly via voice or quick action buttons.
-7. Answer in English or Hinglish according to user tone.`;
+3. Use markdown with bullet points, bold highlights, and clean tables.
+4. If asked about all credit cards with limits or spends, provide a clear table or list with Bank, Last 4 digits, Cardholder, Limit, and Balance.
+5. If asked to perform app actions (navigate to a page, sync cloud, export database, record payment), inform the user that ERA AI can execute those actions directly via voice or quick action buttons.
+6. Answer in English or Hinglish according to user tone.`;
 
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            role: 'user',
-                            parts: [{ text: `${systemInstruction}\n\nUser Question: ${prompt}` }]
-                        }
-                    ]
-                })
+        // Try primary model (gemini-1.5-flash), with fallback to gemini-pro if needed
+        const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+        let lastError = null;
+
+        for (const model of models) {
+            try {
+                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const geminiRes = await fetch(geminiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                role: 'user',
+                                parts: [{ text: `${systemInstruction}\n\nUser Question: ${prompt}` }]
+                            }
+                        ]
+                    })
+                });
+
+                const data = await geminiRes.json();
+                if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+                    return res.status(200).json({ text: data.candidates[0].content.parts[0].text });
+                } else if (data.error) {
+                    lastError = data.error.message || JSON.stringify(data.error);
+                    console.warn(`[Vercel Serverless] Gemini ${model} error:`, lastError);
+                }
+            } catch(modelErr) {
+                lastError = modelErr.message;
+                console.warn(`[Vercel Serverless] Failed calling ${model}:`, lastError);
             }
-        );
-
-        const data = await geminiRes.json();
-        if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
-            return res.status(200).json({ text: data.candidates[0].content.parts[0].text });
-        } else {
-            const errMsg = data.error?.message || 'Gemini API returned an empty or restricted response';
-            return res.status(502).json({ error: errMsg });
         }
+
+        return res.status(502).json({
+            error: `Gemini API call failed: ${lastError || 'Empty response from Google API'}`
+        });
+
     } catch(err) {
-        console.error('Vercel Gemini Serverless Handler Error:', err);
-        return res.status(500).json({ error: err.message || 'Internal server error while contacting Gemini' });
+        console.error('[Vercel Serverless] Internal Error:', err);
+        return res.status(500).json({ error: err.message || 'Server error processing request' });
     }
-}
+};
