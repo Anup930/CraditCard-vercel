@@ -799,13 +799,23 @@ Aap direct voice ya text se ye commands de sakte hain:
             const vRes = await fetch('/api/gemini', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: userPrompt, context: contextData })
+                body: JSON.stringify({
+                    question: userPrompt,
+                    prompt: userPrompt,
+                    financialContext: contextData,
+                    context: contextData,
+                    chatHistory: (this.history || []).slice(-6).map(h => ({
+                        role: h.role === 'user' ? 'user' : 'model',
+                        text: h.text || ''
+                    }))
+                })
             });
 
             if (vRes.ok) {
                 const data = await vRes.json();
-                if (data.text) {
-                    return { success: true, text: data.text };
+                const replyText = data.text || (data.data && data.data.reply) || '';
+                if (replyText) {
+                    return { success: true, text: replyText };
                 }
             } else {
                 const errData = await vRes.json().catch(() => ({}));
