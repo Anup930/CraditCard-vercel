@@ -642,6 +642,7 @@ window.EraAI = {
                 }).join('\n\n');
                 return { text: `🏦 **${matchedBank.toUpperCase()} Cards in Portfolio:**\n\n${cardDetails}` };
             }
+        }
         // All cards with limits and spends / balances lookup
         if ((q.includes('card') || q.includes('cradit') || q.includes('credit')) && (q.includes('all') || q.includes('list')) && (q.includes('limit') || q.includes('expend') || q.includes('spend') || q.includes('balance'))) {
             let totalLim = 0, totalBal = 0;
