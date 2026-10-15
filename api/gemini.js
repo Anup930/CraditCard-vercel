@@ -1,114 +1,134 @@
 // ============================================================
-// VERCEL SERVERLESS FUNCTION: /api/gemini
-// Standard CommonJS handler compatible with all Vercel Node runtimes
-// Securely proxies to Google Gemini using process.env.GEMINI_API_KEY
+// Vercel Serverless Function: Secure Gemini AI Financial Copilot
+// Multi-Model Failover & Conversational Intelligence for Gretex CCMS
 // ============================================================
 
-module.exports = async function handler(req, res) {
-    // Enable CORS
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader(
-        'Access-Control-Allow-Headers',
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-    );
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Credentials", true);
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,POST");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
+  if (req.method === "OPTIONS") return res.status(200).end();
+
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.status(500).json({ success: false, error: "GEMINI_API_KEY missing in Vercel Environment Variables" });
+  }
+
+  if (req.method === "GET") {
+    return res.status(200).json({ success: true, message: "Era AI Credit Card Copilot Online" });
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ success: false, error: "Method not allowed" });
+  }
+
+  try {
+    let body = req.body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch (e) {}
+    }
+    const { question, financialContext, chatHistory, prompt, context } = body || {};
+    const finalQuestion = question || prompt;
+    const finalContext = financialContext || context;
+
+    if (!finalQuestion || !finalQuestion.trim()) {
+      return res.status(400).json({ success: false, error: "Question cannot be empty" });
     }
 
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
+    // Format chat conversation memory if available
+    let historyContext = "";
+    if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+      historyContext = "\n\nRECENT CHAT HISTORY:\n" + chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Era AI'}: ${m.text}`).join("\n");
     }
 
-    // 1. Get GEMINI_API_KEY from Vercel Environment Variables
-    const apiKey = (process.env.GEMINI_API_KEY || process.env.gemini_api_key || '').trim();
-    if (!apiKey) {
-        return res.status(500).json({
-            error: 'GEMINI_API_KEY is not configured in Vercel Environment Variables. Please ensure GEMINI_API_KEY is added under Vercel Settings > Environment Variables and redeploy.'
-        });
-    }
+    const systemPrompt = `You are Era AI, a smart, conversational financial copilot and analyst for Credit Card Management System (Gretex Group).
 
-    try {
-        // Handle body whether parsed as object or passed as JSON string
-        let body = req.body;
-        if (typeof body === 'string') {
-            try { body = JSON.parse(body); } catch(e) {}
-        }
-        const { prompt, context } = body || {};
+CORE RULES FOR NATURAL, DYNAMIC CONVERSATION:
+1. ANSWER DIRECTLY & ACCURATELY:
+   - Always answer the user's specific question directly, point-to-point, and accurately.
+   - For greetings (e.g. "Hi", "Hello", "Kaise ho"), reply warmly and ask how you can help with cards, statements, upcoming dues, unbilled spends, or financial reports today. NEVER dump a repetitive financial report on a simple greeting!
+   - For specific questions (e.g. "Kya koi payment due hai?", "HDFC limit kitni hai?", "Highest spend card kaunsa hai?"), answer ONLY that question with exact card names, limits, balances, dates, and amounts from the context.
+   - Only provide a multi-point executive overview if the user explicitly asks for "summary", "overview", "report", or clicks quick report presets.
 
-        if (!prompt) {
-            return res.status(400).json({ error: 'Missing prompt in request' });
-        }
+2. LANGUAGE ADAPTATION:
+   - Match the user's language naturally!
+   - If the user writes in Hindi or Hinglish (e.g. "Kya koi payment due hai abhi?", "HDFC balance batao"), reply in friendly, fluent, professional Hinglish.
+   - If the user writes in English, reply in clean, professional English.
 
-        const summary = context?.database_summary || {};
-        const allCards = context?.all_cards || [];
+3. DYNAMIC METRICS & CHARTS (NEVER FORCE THEM):
+   - "kpiCards": Return 2-3 cards ONLY if metrics/numbers directly answer or enrich the user's question. For greetings or simple single-fact questions, return an empty array [].
+   - "chart": Return a chart ONLY if the user explicitly asks for charts, spend breakdowns, comparisons, or visual reports. If a chart is not requested or relevant, return null.
 
-        const systemInstruction = `You are ERA AI, the executive financial co-pilot of Credit Card Management System (CCMS) for Gretex Group.
-You have direct, real-time access to the user's COMPLETE credit card database across all entities and banking partners.
+4. REAL DATA USAGE:
+   - Strictly use the LIVE FINANCIAL CONTEXT below. Use exact figures (cards, limits, current balances, statements, amounts in INR ₹, due dates, billing cycles).
 
-Current Live Portfolio Database Snapshot:
-- Total Cards Tracked: ${summary.total_cards || allCards.length || 0} (${summary.active_cards || 0} Active)
-- Total Sanctioned Credit Limit: ₹${(summary.total_sanctioned_limit || 0).toLocaleString('en-IN')}
-- Total Current Balance (Outstanding): ₹${(summary.total_current_balance || 0).toLocaleString('en-IN')}
-- Total Available Credit Headroom: ₹${(summary.total_available_credit || 0).toLocaleString('en-IN')}
-- Overall Portfolio Utilization: ${summary.portfolio_utilization_percent || 0}%
-- Pending Statement Dues: ₹${(summary.total_pending_statement_dues || 0).toLocaleString('en-IN')}
-- Unbilled Swipes: ${summary.total_unbilled_transactions || 0} txns (₹${(summary.total_unbilled_amount || 0).toLocaleString('en-IN')})
-- Total Transactions in Database: ${summary.total_transactions_in_db || 0}
+LIVE FINANCIAL CONTEXT:
+${finalContext ? JSON.stringify(finalContext, null, 2) : "Standard credit card treasury context"}
+${historyContext}
 
-Full Database Snapshot (JSON):
-${JSON.stringify(context || {}, null, 2)}
+USER QUESTION:
+${finalQuestion}
 
-Instructions:
-1. Provide accurate, professional, concise, executive-level financial analysis using the live database snapshot above.
-2. Format financial figures in Indian Rupees (₹) with standard Indian comma grouping (e.g. ₹1,72,20,999).
-3. Use markdown with bullet points, bold highlights, and clean tables.
-4. If asked about all credit cards with limits or spends, provide a clear table or list with Bank, Last 4 digits, Cardholder, Limit, and Balance.
-5. If asked to perform app actions (navigate to a page, sync cloud, export database, record payment), inform the user that ERA AI can execute those actions directly via voice or quick action buttons.
-6. Answer in English or Hinglish according to user tone.`;
+OUTPUT FORMAT (STRICT VALID JSON ONLY, NO EXTRA CODEBLOCKS):
+{
+  "reply": "Your conversational answer in markdown (use bold, bullets, or paragraphs as appropriate).",
+  "kpiCards": [],
+  "chart": null
+}`;
 
-        // Try primary model (gemini-1.5-flash), with fallback to gemini-pro if needed
-        const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
-        let lastError = null;
+    // Priority order from Gretex BillDesk: fast & active v1beta models
+    const models = [
+      "gemini-flash-lite-latest",
+      "gemini-2.5-flash-lite",
+      "gemini-flash-latest",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash"
+    ];
 
-        for (const model of models) {
-            try {
-                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-                const geminiRes = await fetch(geminiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [
-                            {
-                                role: 'user',
-                                parts: [{ text: `${systemInstruction}\n\nUser Question: ${prompt}` }]
-                            }
-                        ]
-                    })
-                });
+    let lastError = null;
 
-                const data = await geminiRes.json();
-                if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
-                    return res.status(200).json({ text: data.candidates[0].content.parts[0].text });
-                } else if (data.error) {
-                    lastError = data.error.message || JSON.stringify(data.error);
-                    console.warn(`[Vercel Serverless] Gemini ${model} error:`, lastError);
-                }
-            } catch(modelErr) {
-                lastError = modelErr.message;
-                console.warn(`[Vercel Serverless] Failed calling ${model}:`, lastError);
+    for (const m of models) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
+
+        const response = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: systemPrompt }] }],
+            generationConfig: {
+              temperature: 0.7
             }
-        }
-
-        return res.status(502).json({
-            error: `Gemini API call failed: ${lastError || 'Empty response from Google API'}`
+          })
         });
 
-    } catch(err) {
-        console.error('[Vercel Serverless] Internal Error:', err);
-        return res.status(500).json({ error: err.message || 'Server error processing request' });
+        const data = await response.json();
+
+        if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+          const rawText = data.candidates[0].content.parts[0].text;
+          const cleanJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+          let parsed;
+          try {
+            parsed = JSON.parse(cleanJson);
+          } catch (e) {
+            parsed = { reply: rawText, kpiCards: [], chart: null };
+          }
+          return res.status(200).json({ success: true, modelUsed: m, data: parsed, text: parsed.reply || rawText });
+        }
+
+        if (data.error) {
+          lastError = data.error.message || JSON.stringify(data.error);
+        }
+      } catch (e) {
+        lastError = e.message;
+      }
     }
-};
+
+    return res.status(500).json({ success: false, error: lastError || "All models busy" });
+
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+}
