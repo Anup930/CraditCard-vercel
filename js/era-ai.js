@@ -642,6 +642,22 @@ window.EraAI = {
                 }).join('\n\n');
                 return { text: `🏦 **${matchedBank.toUpperCase()} Cards in Portfolio:**\n\n${cardDetails}` };
             }
+        // All cards with limits and spends / balances lookup
+        if ((q.includes('card') || q.includes('cradit') || q.includes('credit')) && (q.includes('all') || q.includes('list')) && (q.includes('limit') || q.includes('expend') || q.includes('spend') || q.includes('balance'))) {
+            let totalLim = 0, totalBal = 0;
+            const cardRows = cards.map((c, i) => {
+                const lim = Utils.parseNum(c.credit_limit || 0);
+                const bal = Utils.parseNum(c.current_balance || c.balance || 0);
+                totalLim += lim;
+                totalBal += bal;
+                const util = lim > 0 ? ((bal / lim) * 100).toFixed(0) : '0';
+                return `${i + 1}. **${c.bank_name}** (*${c.last_4_digits || '----'}) — ${c.card_holder || 'Corporate'}\n   • Limit: \`₹${Math.round(lim).toLocaleString('en-IN')}\` | Balance: \`₹${Math.round(bal).toLocaleString('en-IN')}\` | Util: \`${util}%\``;
+            }).join('\n\n');
+
+            return {
+                text: `💳 **Complete Credit Cards Portfolio (${cards.length} Cards):**\n\n${cardRows}\n\n---\n**Portfolio Totals:**\n• Total Sanctioned Limit: **₹${Math.round(totalLim).toLocaleString('en-IN')}**\n• Total Current Balance: **₹${Math.round(totalBal).toLocaleString('en-IN')}**\n• Available Headroom: **₹${Math.round(Math.max(0, totalLim - totalBal)).toLocaleString('en-IN')}**`,
+                actionCard: { title: 'Card Master', label: 'Open Card Master', onClick: 'EraAI.toggle(false); App.navigate("master");' }
+            };
         }
 
         // 4. GENERATIVE LLM QUERY (Prioritizes Vercel Serverless /api/gemini with Full Database Context)
@@ -793,6 +809,12 @@ Aap direct voice ya text se ye commands de sakte hain:
             } else {
                 const errData = await vRes.json().catch(() => ({}));
                 console.warn('[EraAI] Vercel serverless /api/gemini returned:', vRes.status, errData);
+                if (errData && errData.error) {
+                    return {
+                        success: true,
+                        text: `⚠️ **Vercel AI Status (${vRes.status})**: ${errData.error}`
+                    };
+                }
             }
         } catch(e) {
             // Local dev without Vercel serverless host
