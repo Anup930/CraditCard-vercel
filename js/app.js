@@ -64,10 +64,20 @@ window.Auth = {
 
         // Boot the main app
         await App.init();
+
+        // Boot ERA AI Co-Pilot & App Controller
+        if (window.EraAI && typeof window.EraAI.init === 'function') {
+            window.EraAI.init();
+        }
     },
 
     logout() {
         if (confirm('Are you sure you want to logout?')) {
+            // Close ERA AI
+            if (window.EraAI && typeof window.EraAI.toggle === 'function') {
+                window.EraAI.toggle(false);
+            }
+
             // 1. 100% Data Purge Standard: Wipe all AES-GCM keys and encrypted caches
             if (window.CryptoStore) {
                 CryptoStore.wipeAll();
