@@ -644,8 +644,9 @@ window.EraAI = {
             }
         }
 
-        // 4. GENERATIVE LLM QUERY (Prioritizes Vercel Serverless /api/gemini with GEMINI_API_KEY)
-        const geminiRes = await this._callGemini(query, { cards, txns, stmts, unbilled });
+        // 4. GENERATIVE LLM QUERY (Prioritizes Vercel Serverless /api/gemini with Full Database Context)
+        const fullContext = this.getFullDbContext();
+        const geminiRes = await this._callGemini(query, fullContext);
         if (geminiRes && geminiRes.success) {
             return { text: geminiRes.text };
         }
@@ -661,6 +662,117 @@ Aap direct voice ya text se ye commands de sakte hain:
 - *"Upcoming due dates check karo"*
 
 *(💡 Tip: Vercel Project Settings > Environment Variables me **GEMINI_API_KEY** add karein to cloud-level advanced reasoning automatically connect ho jayegi!)*`
+        };
+    },
+
+    getFullDbContext() {
+        const raw = (window.DB && window.DB.data) || {};
+        const cards = raw.credit_cards || [];
+        const txns = raw.transactions || [];
+        const stmts = raw.statements || [];
+        const payments = raw.payments || [];
+        const unbilled = raw.unbilled || [];
+
+        let totalLimit = 0, totalBal = 0;
+        const cleanCards = cards.map(c => {
+            const lim = Utils.parseNum(c.credit_limit || 0);
+            const bal = Utils.parseNum(c.current_balance || c.balance || 0);
+            totalLimit += lim;
+            totalBal += bal;
+            return {
+                card_id: c.card_id,
+                bank: c.bank_name,
+                last_4: c.last_4_digits,
+                holder: c.card_holder,
+                limit: lim,
+                balance: bal,
+                available: Math.max(0, lim - bal),
+                utilization_pct: lim > 0 ? ((bal / lim) * 100).toFixed(1) : 0,
+                billing_cycle: c.billing_cycle_date || c.billing_cycle,
+                due_date: c.payment_due_date || c.due_date,
+                status: c.status || 'Active'
+            };
+        });
+
+        let totalPendingDues = 0;
+        const cleanStmts = stmts.map(s => {
+            const due = Utils.parseNum(s.closing_outstanding || s.billed_amount || 0);
+            if ((s.payment_status || 'Pending').toLowerCase() !== 'paid') {
+                totalPendingDues += due;
+            }
+            return {
+                id: s.statement_id,
+                card_id: s.card_id,
+                month: s.statement_month,
+                billed: Utils.parseNum(s.billed_amount || 0),
+                outstanding: due,
+                status: s.payment_status || 'Pending',
+                due_date: s.due_date
+            };
+        });
+
+        let totalPaid = 0;
+        const cleanPayments = payments.map(p => {
+            const amt = Utils.parseNum(p.amount || 0);
+            totalPaid += amt;
+            return {
+                id: p.payment_id,
+                card_id: p.card_id,
+                amount: amt,
+                date: p.payment_date,
+                mode: p.payment_mode
+            };
+        });
+
+        let totalUnbilledAmt = 0;
+        const cleanUnbilled = unbilled.map(u => {
+            const amt = Utils.parseNum(u.amount || 0);
+            totalUnbilledAmt += amt;
+            return {
+                id: u.unbilled_id,
+                card_id: u.card_id,
+                amount: amt,
+                date: u.txn_date,
+                desc: u.description || u.narration,
+                status: u.status || 'Unbilled'
+            };
+        });
+
+        const categorySpends = {};
+        txns.forEach(t => {
+            const cat = t.category || 'General';
+            const amt = Utils.parseNum(t.amount || 0);
+            categorySpends[cat] = (categorySpends[cat] || 0) + amt;
+        });
+
+        return {
+            database_summary: {
+                total_cards: cards.length,
+                active_cards: cards.filter(c => (c.status || 'Active').toLowerCase() === 'active').length,
+                total_sanctioned_limit: Math.round(totalLimit),
+                total_current_balance: Math.round(totalBal),
+                total_available_credit: Math.round(Math.max(0, totalLimit - totalBal)),
+                portfolio_utilization_percent: totalLimit > 0 ? ((totalBal / totalLimit) * 100).toFixed(1) : 0,
+                total_pending_statement_dues: Math.round(totalPendingDues),
+                total_payments_count: payments.length,
+                total_payments_amount: Math.round(totalPaid),
+                total_unbilled_transactions: unbilled.length,
+                total_unbilled_amount: Math.round(totalUnbilledAmt),
+                total_transactions_in_db: txns.length
+            },
+            all_cards: cleanCards,
+            statements_summary: cleanStmts.slice(0, 35),
+            recent_payments: cleanPayments.slice(0, 20),
+            unbilled_records: cleanUnbilled.slice(0, 30),
+            category_wise_spending: categorySpends,
+            recent_transactions_sample: txns.slice(0, 25).map(t => ({
+                id: t.txn_id,
+                date: t.txn_date,
+                amount: Utils.parseNum(t.amount || 0),
+                desc: t.description || t.merchant,
+                category: t.category
+            })),
+            active_user: JSON.parse(sessionStorage.getItem('ccms_user') || '{}')
         };
     },
 
