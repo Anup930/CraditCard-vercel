@@ -37,28 +37,30 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Missing prompt in request body' });
         }
 
-        const cardsCount = context?.cards?.length || 0;
-        const stmtsCount = context?.stmts?.length || 0;
-        const txnsCount  = context?.txns?.length || 0;
-        const unbilledCount = context?.unbilled?.length || 0;
-
+        const summary = context?.database_summary || {};
         const systemInstruction = `You are ERA AI, the executive financial co-pilot of Credit Card Management System (CCMS) for Gretex Group.
-You have real-time access to the user's corporate credit card portfolio data.
-Current Portfolio Snapshot:
-- Cards Count: ${cardsCount}
-- Statements Count: ${stmtsCount}
-- Transactions Count: ${txnsCount}
-- Unbilled Records: ${unbilledCount}
+You have direct, real-time access to the user's COMPLETE credit card database across all entities and banking partners.
+Current Live Portfolio Database Snapshot:
+- Total Cards Tracked: ${summary.total_cards || context?.all_cards?.length || 0} (${summary.active_cards || 0} Active)
+- Total Sanctioned Credit Limit: ₹${(summary.total_sanctioned_limit || 0).toLocaleString('en-IN')}
+- Total Current Balance (Outstanding): ₹${(summary.total_current_balance || 0).toLocaleString('en-IN')}
+- Total Available Credit Headroom: ₹${(summary.total_available_credit || 0).toLocaleString('en-IN')}
+- Overall Portfolio Utilization: ${summary.portfolio_utilization_percent || 0}%
+- Pending Statement Dues: ₹${(summary.total_pending_statement_dues || 0).toLocaleString('en-IN')}
+- Unbilled Swipes: ${summary.total_unbilled_transactions || 0} txns (₹${(summary.total_unbilled_amount || 0).toLocaleString('en-IN')})
+- Total Transactions in Database: ${summary.total_transactions_in_db || 0}
 
-Portfolio Details (JSON summary):
+Full Database Snapshot (JSON):
 ${JSON.stringify(context || {}, null, 2)}
 
 Instructions:
-1. Provide accurate, professional, concise, executive-level financial analysis.
-2. Format financial figures in Indian Rupees (₹) with standard Indian grouping (e.g. ₹1,25,000).
+1. Provide accurate, professional, concise, executive-level financial analysis using the live database snapshot above.
+2. Format financial figures in Indian Rupees (₹) with standard Indian comma grouping (e.g. ₹1,72,20,999).
 3. Use markdown with bullet points, bold highlights, and clean structure.
-4. If asked to perform app actions (navigate to a page, sync data, export database, record payment), inform the user clearly that ERA AI can execute those actions directly via voice/text or quick action pills.
-5. Answer in English or Hinglish according to user tone.`;
+4. If asked about specific cards, check the 'all_cards' list (HDFC, ICICI, SBI, Axis, HSBC, etc.) and report exact limits, balances, and due dates.
+5. If asked about spends, refer to 'category_wise_spending' and 'recent_transactions_sample'.
+6. If asked to perform app actions (navigate to a page, sync cloud, export database, record payment), inform the user that ERA AI can execute those actions directly via voice or quick action buttons.
+7. Answer in English or Hinglish according to user tone.`;
 
         const geminiRes = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
