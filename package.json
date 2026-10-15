@@ -1,6 +1,7 @@
 {
   "name": "creditcard-vercel",
   "version": "1.0.0",
+  "type": "module",
   "description": "Credit Card Management System (CCMS) with ERA AI",
   "main": "index.html",
   "scripts": {
