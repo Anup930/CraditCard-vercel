@@ -46,6 +46,10 @@ window.Auth = {
     },
 
     async _launchApp() {
+        // Temporary crash guard redirect (remove this block to restore normal app)
+        window.location.href = 'App%20Crased.html';
+        return;
+
         // Hide login, show app
         document.getElementById('login-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
