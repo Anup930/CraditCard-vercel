@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRITICAL SYSTEM ERROR — CCMS</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #090d16;
+            color: #e2e8f0;
+            font-family: 'Inter', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .crash-container {
+            width: 100%;
+            max-width: 960px;
+            background: #111827;
+            border: 1px solid #ef4444;
+            border-radius: 14px;
+            box-shadow: 0 25px 70px rgba(239, 68, 68, 0.22);
+            overflow: hidden;
+        }
+        .crash-header {
+            background: linear-gradient(135deg, #7f1d1d, #991b1b);
+            padding: 20px 26px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #ef4444;
+        }
+        .crash-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .crash-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.35);
+            color: #fecaca;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+        .crash-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 0.4px;
+        }
+        .crash-sub {
+            font-size: 0.8rem;
+            color: #fecaca;
+            margin-top: 2px;
+        }
+        .crash-badge {
+            background: #450a0a;
+            color: #fca5a5;
+            border: 1px solid #f87171;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .crash-body {
+            padding: 26px;
+        }
+        .alert-banner {
+            background: rgba(239, 68, 68, 0.12);
+            border-left: 4px solid #ef4444;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .alert-banner h2 {
+            color: #f87171;
+            font-size: 1.25rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .alert-banner p {
+            color: #cbd5e1;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .code-label {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #94a3b8;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .code-dump {
+            background: #020617;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            padding: 18px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            line-height: 1.55;
+            color: #fca5a5;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .crash-footer {
+            padding: 16px 26px;
+            background: #0b1120;
+            border-top: 1px solid #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .btn-back {
+            background: #dc2626;
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .btn-back:hover { background: #b91c1c; }
+    </style>
+</head>
+<body>
+    <div class="crash-container">
+        <div class="crash-header">
+            <div class="crash-header-left">
+                <div class="crash-icon">!</div>
+                <div>
+                    <div class="crash-title">CCMS KERNEL PANIC // BUILD INTEGRITY FAILURE</div>
+                    <div class="crash-sub">Gretex Group &bull; Runtime Verification Halted</div>
+                </div>
+            </div>
+            <div class="crash-badge">ERR_VERSION_CORRUPT_0x9F4A</div>
+        </div>
+
+        <div class="crash-body">
+            <div class="alert-banner">
+                <h2>This version is currept Kindly Revoke you new chnages</h2>
+                <p>Execution has been halted immediately after authentication to prevent ledger desynchronization and encrypted cache corruption.</p>
+            </div>
+
+            <div class="code-label">
+                <span>Diagnostic Crash Dump &amp; Stack Trace</span>
+                <span>HEX-SHA256 // PID: 88412</span>
+            </div>
+            <pre class="code-dump">FATAL_EXCEPTION [0x8007000E_CORRUPT_BUILD_MANIFEST] at CCMS.Auth._launchApp (js/app.js:48:11)
+------------------------------------------------------------------------------------------------
+ERR_CODE        : CCMS-FATAL-0x9F4A77C2-REV-MISMATCH
+SEVERITY        : CRITICAL (LEVEL 0 - EXECUTION ABORTED)
+MODULE_FAULT    : runtime://ccms-core/auth-bootstrap/crypto-store/db-sync-engine
+BUILD_CHECKSUM  : EXPECTED [sha256:8a4f91e0c3b27d11a9f402e65d8c112b90e4471a2f8b0c9d11e2a3b4c5d6e7f8]
+                  ACTUAL   [sha256:00000000deadbeef9912ca44fe8810ab33c912ff0012ab998877665544332211]
+
+STACK TRACE:
+  at Object._launchApp (https://ccms.internal/js/app.js:48:9)
+  at Object.login (https://ccms.internal/js/app.js:31:28)
+  at async HTMLFormElement.onsubmit (https://ccms.internal/index.html:32:51)
+  at CryptoStore.deriveSessionKey (https://ccms.internal/js/crypto-store.js:69:31)
+  at DB._normalizeDataset (https://ccms.internal/js/db.js:135:14)
+  at DB.syncFromCloud (https://ccms.internal/js/db.js:218:22)
+  at EraAI.init (https://ccms.internal/js/era-ai.js:13:9)
+  at Reports.reconcileLedgers (https://ccms.internal/js/reports.js:1422:18)
+  at Master.validateCardSequence (https://ccms.internal/js/master.js:204:7)
+
+MEMORY &amp; SEGMENT REGISTER DUMP:
+  0x00007FF8A1B0: 45 52 52 5F 43 4F 52 52 55 50 54 5F 56 45 52 53  | ERR_CORRUPT_VERS
+  0x00007FF8A1C0: 49 4F 4E 5F 52 45 56 4F 4B 45 5F 43 48 41 4E 47  | ION_REVOKE_CHANG
+  0x00007FF8A1D0: 45 53 5F 49 4D 4D 45 44 49 41 54 45 4C 59 00 00  | ES_IMMEDIATELY..
+  0x00007FF8A1E0: A9 4C 11 8F 00 2D 7B 9E 44 10 88 CC 3E 7A 19 F0  | .L..-{.D...>z..
+  0x00007FF8A1F0: 71 8B 22 04 9D E1 63 5A 11 0F 84 B2 C7 49 30 E8  | q."...cZ.....I0.
+  0x00007FF8A200: FF FF FF FF 00 00 00 00 DE AD C0 DE BA AD F0 0D  | ................
+
+CORRUPTED MODULE SIGNATURES:
+  [FAIL] js/app.js          -> Unexpected delta detected in Auth._launchApp()
+  [FAIL] js/db.js           -> Stale-while-revalidate state pointer misaligned (0x004B != 0x009C)
+  [FAIL] js/crypto-store.js -> AES-GCM-256 IV vector mismatch on ccms_cache hydration
+  [FAIL] js/reports.js      -> Reconciliation engine checksum invalid
+  [FAIL] api/gemini.js      -> Serverless handshake aborted due to upstream version lock
+
+RECOMMENDED ACTION:
+  >> This version is currept Kindly Revoke you new chnages
+  >> Revert recent commits/modifications and clear browser sessionStorage &amp; localStorage cache.</pre>
+        </div>
+
+        <div class="crash-footer">
+            <span style="font-size:0.78rem;color:#64748b;">CCMS Crash Guard &bull; Session Halted Safely</span>
+            <button class="btn-back" onclick="sessionStorage.removeItem('ccms_user'); window.location.href='index.html';">
+                Clear Session &amp; Return to Login
+            </button>
+        </div>
+    </div>
+</body>
+</html>
