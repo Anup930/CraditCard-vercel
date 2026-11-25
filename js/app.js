@@ -101,12 +101,14 @@ window.Auth = {
     togglePassword() {
         const input = document.getElementById('login-password');
         const icon  = document.getElementById('pwd-eye-icon');
-        if (input.type === 'password') {
-            input.type = 'text';
-            icon.className = 'fas fa-eye-slash';
-        } else {
-            input.type = 'password';
-            icon.className = 'fas fa-eye';
+        const btn   = document.getElementById('btn-toggle-pwd');
+        if (!input) return;
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        if (icon) icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
+        if (btn) {
+            btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+            btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
         }
     },
 
@@ -680,8 +682,41 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Boot: show login screen, or auto-resume session
+// Boot: bind login form & show login screen, or auto-resume session
 document.addEventListener('DOMContentLoaded', async () => {
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', () => {
+                if (input.validity.valid) {
+                    input.classList.remove('user-invalid-fallback');
+                    input.setAttribute('aria-invalid', 'false');
+                }
+            });
+        });
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!loginForm.checkValidity()) {
+                loginForm.querySelectorAll('input').forEach(input => {
+                    if (!input.validity.valid) {
+                        input.classList.add('user-invalid-fallback');
+                        input.setAttribute('aria-invalid', 'true');
+                    }
+                });
+                const firstInvalid = loginForm.querySelector(':invalid');
+                if (firstInvalid) firstInvalid.focus();
+                return;
+            }
+            Auth.login();
+        });
+    }
+
+    const togglePwdBtn = document.getElementById('btn-toggle-pwd');
+    if (togglePwdBtn) {
+        togglePwdBtn.addEventListener('click', () => Auth.togglePassword());
+    }
+
     // System update overlay auto-popup disabled by default per user request.
     // Available on-demand via top navbar "Updates" button.
 
