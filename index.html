@@ -17,47 +17,136 @@
 
     <!-- ===== LOGIN SCREEN ===== -->
     <div id="login-screen">
-        <div class="login-card">
-            <div class="login-logo">
-                <i class="fas fa-credit-card"></i>
-            </div>
-            <h2 class="login-title">Credit Card Management</h2>
-            <p class="login-subtitle">Gretex Group &mdash; Sign in to continue</p>
+        <div class="login-bg-grid" aria-hidden="true"></div>
+        <div class="login-orb login-orb-1" aria-hidden="true"></div>
+        <div class="login-orb login-orb-2" aria-hidden="true"></div>
 
-            <div id="login-error" class="login-error hidden">
-                <i class="fas fa-exclamation-circle"></i>
-                <span id="login-error-msg">Invalid username or password</span>
-            </div>
+        <div class="login-shell">
+            <!-- Left Showcase Panel -->
+            <section class="login-showcase" aria-hidden="true">
+                <div class="login-brand-pill">
+                    <span class="pulse-dot"></span>
+                    <span>CCMS ENTERPRISE &bull; AES-256 ENCRYPTED</span>
+                </div>
 
-            <form id="login-form" onsubmit="event.preventDefault(); Auth.login()">
-                <div class="login-field">
-                    <label>Username</label>
-                    <div class="login-input-wrap">
-                        <i class="fas fa-user"></i>
-                        <input type="text" id="login-username" placeholder="Enter username" autocomplete="username" required>
+                <h1 class="login-hero-title">
+                    Gretex Corporate <br>
+                    <span>Card Treasury.</span>
+                </h1>
+                <p class="login-hero-desc">
+                    Unified credit limits, automated Zoho ledger reconciliation, and real-time ERA AI portfolio intelligence for Gretex Group.
+                </p>
+
+                <div class="login-visual-card">
+                    <div class="vc-top">
+                        <div class="vc-chip"></div>
+                        <span class="vc-network">INFINIA METAL</span>
+                    </div>
+                    <div class="vc-number">•••• &nbsp;•••• &nbsp;•••• &nbsp;0397</div>
+                    <div class="vc-bottom">
+                        <div>
+                            <div class="vc-label">CORPORATE TREASURY</div>
+                            <div class="vc-holder">GRETEX GROUP</div>
+                        </div>
+                        <div class="vc-badge"><i class="fas fa-shield-alt"></i> SECURE</div>
                     </div>
                 </div>
-                <div class="login-field">
-                    <label>Password</label>
-                    <div class="login-input-wrap">
-                        <i class="fas fa-lock"></i>
-                        <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password" required>
-                        <button type="button" class="toggle-pwd" onclick="Auth.togglePassword()" title="Show/Hide">
-                            <i class="fas fa-eye" id="pwd-eye-icon"></i>
-                        </button>
-                    </div>
-                </div>
-                <button type="submit" class="btn-login" id="btn-login">
-                    <span id="login-btn-text"><i class="fas fa-sign-in-alt"></i> Sign In</span>
-                    <span id="login-btn-loading" class="hidden"><i class="fas fa-spinner fa-spin"></i> Verifying...</span>
-                </button>
-            </form>
 
-            <div class="login-hint">
-                <i class="fas fa-info-circle"></i>
-                <!-- Default &mdash; Username: <strong>admin</strong> &nbsp;|&nbsp; Password: <strong>admin123</strong> -->
-            </div>
-            <div class="login-footer">Gretex Group &copy; 2025 &nbsp;&bull;&nbsp; CCMS v1.0</div>
+                <div class="login-feature-pills">
+                    <div class="lf-pill"><i class="fas fa-bolt"></i> 0ms Local Cache</div>
+                    <div class="lf-pill"><i class="fas fa-brain"></i> ERA AI Copilot</div>
+                    <div class="lf-pill"><i class="fas fa-chart-line"></i> Live Utilization</div>
+                </div>
+            </section>
+
+            <!-- Right Sign-In Card -->
+            <section class="login-card" aria-labelledby="login-heading">
+                <div class="login-card-header">
+                    <div class="login-logo">
+                        <i class="fas fa-credit-card"></i>
+                    </div>
+                    <h2 id="login-heading" class="login-title">Welcome back</h2>
+                    <p class="login-subtitle">Sign in to Gretex CCMS Workspace</p>
+                </div>
+
+                <div id="login-error" class="login-error hidden" role="alert" aria-live="assertive">
+                    <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                    <span id="login-error-msg">Invalid username or password</span>
+                </div>
+
+                <form id="login-form" novalidate>
+                    <div class="login-field">
+                        <label for="login-username">Username <span class="req-star" aria-hidden="true">*</span></label>
+                        <div class="login-input-wrap">
+                            <i class="fas fa-user input-icon" aria-hidden="true"></i>
+                            <input
+                                type="text"
+                                id="login-username"
+                                name="username"
+                                placeholder="Enter your username"
+                                autocomplete="username"
+                                autocorrect="off"
+                                autocapitalize="none"
+                                spellcheck="false"
+                                enterkeyhint="next"
+                                data-error="login-username-error"
+                                required
+                            >
+                        </div>
+                        <div id="login-username-error" class="field-error-msg">
+                            <span role="img" aria-label="Error">⚠️</span> Please enter your username.
+                        </div>
+                    </div>
+
+                    <div class="login-field">
+                        <label for="login-password">Password <span class="req-star" aria-hidden="true">*</span></label>
+                        <div class="login-input-wrap">
+                            <i class="fas fa-lock input-icon" aria-hidden="true"></i>
+                            <input
+                                type="password"
+                                id="login-password"
+                                name="password"
+                                placeholder="Enter your password"
+                                autocomplete="current-password"
+                                enterkeyhint="done"
+                                data-error="login-password-error"
+                                required
+                            >
+                            <button
+                                type="button"
+                                id="btn-toggle-pwd"
+                                class="toggle-pwd"
+                                aria-pressed="false"
+                                aria-label="Show password"
+                                title="Show/Hide password"
+                            >
+                                <i class="fas fa-eye" id="pwd-eye-icon" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        <div id="login-password-error" class="field-error-msg">
+                            <span role="img" aria-label="Error">⚠️</span> Please enter your password.
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-login" id="btn-login">
+                        <span id="login-btn-text">
+                            <span>Sign In to Workspace</span>
+                            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                        </span>
+                        <span id="login-btn-loading" class="hidden">
+                            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                            <span>Verifying credentials...</span>
+                        </span>
+                    </button>
+                </form>
+
+                <div class="login-security-bar">
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <span>Hardware-accelerated AES-GCM 256-bit session protection</span>
+                </div>
+
+                <div class="login-footer">Gretex Group &copy; 2026 &nbsp;&bull;&nbsp; CCMS v2.1</div>
+            </section>
         </div>
     </div>
 
