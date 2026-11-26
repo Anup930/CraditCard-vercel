@@ -612,3 +612,55 @@ html[data-theme="dark"] [style*="border: 1px solid #dee2e6"] {
     border-color: #1e293b !important;
 }
 
+/* ── Group Report Poster in Dark Mode ───────────────────────── */
+html[data-theme="dark"] .gr-toolbar,
+html[data-theme="dark"] .gr-section {
+    background: #0f172a !important;
+    border-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .gr-poster {
+    background: #070b14 !important;
+    border-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .gr-date-wrap,
+html[data-theme="dark"] .gr-sec-head p,
+html[data-theme="dark"] .gr-last4,
+html[data-theme="dark"] .gr-poster-footer {
+    color: #94a3b8;
+}
+
+html[data-theme="dark"] .gr-sec-head h3 {
+    color: #f8fafc;
+}
+
+html[data-theme="dark"] .gr-table-wrap {
+    border-color: #1e293b;
+}
+
+html[data-theme="dark"] .gr-table tbody td {
+    color: #e2e8f0;
+    border-bottom-color: #1e293b;
+}
+
+html[data-theme="dark"] .gr-table tbody tr:nth-child(even) {
+    background: #131c31;
+}
+
+html[data-theme="dark"] .gr-table tfoot td {
+    background: #1e1b4b;
+    color: #e0e7ff;
+    border-top-color: #4338ca;
+}
+
+html[data-theme="dark"] .gr-count-pill {
+    background: rgba(99, 102, 241, 0.22);
+    color: #c7d2fe;
+}
+
+html[data-theme="dark"] .gr-txt-rose    { color: #fda4af; }
+html[data-theme="dark"] .gr-txt-emerald { color: #6ee7b7; }
+html[data-theme="dark"] .gr-txt-indigo  { color: #a5b4fc; }
+
+
