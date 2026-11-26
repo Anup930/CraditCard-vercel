@@ -255,15 +255,11 @@ window.Dashboard = {
         // EXECUTIVE CHARTS & CONCENTRATION SECTION
         // ═════════════════════════════════════════════════════════════════
         const dashGrid = document.createElement('div');
-        dashGrid.style.cssText = 'display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:24px;';
-
-        // Left: Charts
-        const chartsSection = document.createElement('div');
-        chartsSection.className = 'd-flex flex-column gap-3';
+        dashGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1.65fr;gap:20px;margin-bottom:24px;align-items:stretch;';
 
         const chartCard1 = document.createElement('div');
         chartCard1.className = 'card p-3';
-        chartCard1.style.cssText = 'border-radius:14px;border:1px solid #e2e8f0;';
+        chartCard1.style.cssText = 'border-radius:14px;border:1px solid #e2e8f0;display:flex;flex-direction:column;';
         chartCard1.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 style="font-size:0.95rem;font-weight:700;color:#0f172a;margin:0;">
@@ -271,14 +267,14 @@ window.Dashboard = {
                 </h4>
                 <span class="badge bg-light text-muted border">Filtered View</span>
             </div>
-            <div class="chart-container" style="height:240px;position:relative;">
+            <div class="chart-container" style="height:230px;position:relative;flex:1;">
                 <canvas id="bankChart"></canvas>
             </div>
         `;
 
         const chartCard2 = document.createElement('div');
         chartCard2.className = 'card p-3';
-        chartCard2.style.cssText = 'border-radius:14px;border:1px solid #e2e8f0;';
+        chartCard2.style.cssText = 'border-radius:14px;border:1px solid #e2e8f0;display:flex;flex-direction:column;';
         chartCard2.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 style="font-size:0.95rem;font-weight:700;color:#0f172a;margin:0;">
@@ -286,53 +282,13 @@ window.Dashboard = {
                 </h4>
                 <span class="badge bg-light text-muted border">Billing Trend</span>
             </div>
-            <div class="chart-container" style="height:240px;position:relative;">
+            <div class="chart-container" style="height:230px;position:relative;flex:1;">
                 <canvas id="trendChart"></canvas>
             </div>
         `;
 
-        chartsSection.appendChild(chartCard1);
-        chartsSection.appendChild(chartCard2);
-
-        // Right: Risk & Operational Alerts Panel
-        const alertsPanel = document.createElement('div');
-        alertsPanel.className = 'card p-3';
-        alertsPanel.style.cssText = 'border-radius:14px;border:1px solid #e2e8f0;display:flex;flex-direction:column;';
-        
-        const alertsList = this.generateAlerts();
-        let alertsHtml = `
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 style="font-size:0.95rem;font-weight:700;color:#0f172a;margin:0;">
-                    <i class="fas fa-bell text-warning me-2"></i>Governance &amp; Risk Alerts
-                </h4>
-                <span class="badge" style="background:#fee2e2;color:#ef4444;font-weight:700;">${alertsList.length} Items</span>
-            </div>
-            <div style="flex:1;overflow-y:auto;max-height:510px;padding-right:4px;">
-        `;
-
-        if (alertsList.length === 0) {
-            alertsHtml += `
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-check-circle text-success mb-2" style="font-size:2rem;"></i>
-                    <div style="font-weight:600;">Zero Risk Flags</div>
-                    <div style="font-size:0.75rem;">All cards are operating within sanctioned limits.</div>
-                </div>
-            `;
-        } else {
-            alertsList.forEach(alert => {
-                alertsHtml += `
-                    <div class="p-2 mb-2 rounded border" style="background:#f8fafc;border-left:4px solid ${alert.severity === 'danger' ? '#ef4444' : (alert.severity === 'warning' ? '#f59e0b' : '#3b82f6')} !important;">
-                        <div style="font-size:0.82rem;font-weight:700;color:#1e293b;">${alert.title}</div>
-                        <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">${alert.message}</div>
-                    </div>
-                `;
-            });
-        }
-        alertsHtml += `</div>`;
-        alertsPanel.innerHTML = alertsHtml;
-
-        dashGrid.appendChild(chartsSection);
-        dashGrid.appendChild(alertsPanel);
+        dashGrid.appendChild(chartCard1);
+        dashGrid.appendChild(chartCard2);
         wrapper.appendChild(dashGrid);
 
         // ═════════════════════════════════════════════════════════════════
