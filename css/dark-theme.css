@@ -635,7 +635,9 @@ html[data-theme="dark"] .gr-sec-head h3 {
     color: #f8fafc;
 }
 
-html[data-theme="dark"] .gr-table-wrap {
+html[data-theme="dark"] .gr-table-wrap,
+html[data-theme="dark"] .gr-chart-box {
+    background: #090e1a;
     border-color: #1e293b;
 }
 
