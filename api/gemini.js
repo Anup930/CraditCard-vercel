@@ -78,16 +78,16 @@ OUTPUT FORMAT (STRICT VALID JSON ONLY, NO EXTRA CODEBLOCKS):
   "chart": null
 }`;
 
-    // Priority order from Gretex BillDesk: fast & active v1beta models
+    // Priority order: active v1beta Gemini models (gemini-1.5-flash is retired)
     const models = [
-      "gemini-flash-lite-latest",
+      "gemini-2.5-flash",
       "gemini-2.5-flash-lite",
-      "gemini-flash-latest",
       "gemini-2.0-flash",
-      "gemini-1.5-flash"
+      "gemini-flash-latest",
+      "gemini-flash-lite-latest"
     ];
 
-    let lastError = null;
+    const errors = [];
 
     for (const m of models) {
       try {
@@ -119,14 +119,14 @@ OUTPUT FORMAT (STRICT VALID JSON ONLY, NO EXTRA CODEBLOCKS):
         }
 
         if (data.error) {
-          lastError = data.error.message || JSON.stringify(data.error);
+          errors.push(`${m}: ${data.error.message || JSON.stringify(data.error)}`);
         }
       } catch (e) {
-        lastError = e.message;
+        errors.push(`${m}: ${e.message}`);
       }
     }
 
-    return res.status(500).json({ success: false, error: lastError || "All models busy" });
+    return res.status(500).json({ success: false, error: errors[0] || "All models busy", details: errors });
 
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
