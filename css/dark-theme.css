@@ -663,6 +663,12 @@ html[data-theme="dark"] .gr-txt-rose    { color: #fda4af; }
 html[data-theme="dark"] .gr-txt-emerald { color: #6ee7b7; }
 html[data-theme="dark"] .gr-txt-indigo  { color: #a5b4fc; }
 
+html[data-theme="dark"] .gr-urg-box.urg-over   { background: rgba(244, 63, 94, 0.16); border-color: rgba(244, 63, 94, 0.35); color: #fda4af; }
+html[data-theme="dark"] .gr-urg-box.urg-soon   { background: rgba(249, 115, 22, 0.16); border-color: rgba(249, 115, 22, 0.35); color: #fdba74; }
+html[data-theme="dark"] .gr-urg-box.urg-4to7   { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.35); color: #fcd34d; }
+html[data-theme="dark"] .gr-urg-box.urg-8to15  { background: rgba(59, 130, 246, 0.16); border-color: rgba(59, 130, 246, 0.35); color: #93c5fd; }
+html[data-theme="dark"] .gr-urg-box.urg-ok     { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.35); color: #6ee7b7; }
+
 /* ── Premium Suite in Dark Mode ─────────────────────────────── */
 html[data-theme="dark"] .ps-notif-popover,
 html[data-theme="dark"] .ps-opt-card {
