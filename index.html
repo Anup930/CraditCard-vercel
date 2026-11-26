@@ -228,6 +228,9 @@
                 <button id="btn-import-db" class="btn-sidebar" title="Import database from Excel">
                     <i class="fas fa-upload"></i><span>Load DB</span>
                 </button>
+                <button type="button" id="btn-app-about" onclick="App.showAboutModal()" title="View App Version &amp; Developer Details" style="width:100%;margin-top:4px;padding:6px 10px;border:none;border-radius:8px;background:rgba(255,255,255,0.04);color:#94a3b8;font-size:0.72rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background-color 0.2s,color 0.2s;" onmouseover="this.style.background='rgba(67,97,238,0.18)';this.style.color='#e2e8f0';" onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.color='#94a3b8';">
+                    <i class="fas fa-info-circle"></i><span>v3.0 &bull; App Info</span>
+                </button>
             </div>
         </aside>
 
@@ -256,7 +259,7 @@
                             <i class="fas fa-brain" style="color:#ffd166;"></i> <span>ERA AI</span>
                         </button>
                         <button id="btn-show-updates" class="btn btn-sm" onclick="App.showUpdateModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;padding:5px 12px;border-radius:100px;background:#f3e8ff;color:#7209b7;border:1px solid #d8b4fe;cursor:pointer;font-weight:600;" title="View System Updates & Client Queries Log">
-                            <i class="fas fa-bolt"></i> <span>⚡ What's New (v2.1)</span>
+                            <i class="fas fa-bolt"></i> <span>⚡ What's New (v3.0)</span>
                         </button>
                         <span id="db-status" class="badge badge-success" title="Hardware-Accelerated AES-GCM 256-bit Encryption Active">
                             <i class="fas fa-shield-alt"></i> AES-256
