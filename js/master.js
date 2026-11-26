@@ -180,12 +180,15 @@ window.Master = {
                     const limitText = limitVal > 0 ? window.Utils.formatCurrency(limitVal) : 'Shared / Unset';
 
                     html += `
-                        <article class="cc-visual-card" style="background: ${theme.grad}; --card-glow: ${theme.glow}; animation-delay: ${Math.min(i * 35, 280)}ms;">
+                        <article class="cc-visual-card ${isPrimary ? 'is-primary-card' : 'is-addon-card'}" style="background: ${theme.grad}; --card-glow: ${theme.glow}; animation-delay: ${Math.min(i * 35, 280)}ms;">
                             <div class="cc-card-sheen" aria-hidden="true"></div>
                             <div class="cc-card-top">
                                 <div class="cc-chip-wrap">
                                     <div class="cc-emv-chip"></div>
-                                    <span class="cc-cat-tag ${isPrimary ? 'is-primary' : 'is-addon'}">${window.Utils.escapeHtml(c.card_category || 'Card')}</span>
+                                    <span class="cc-cat-tag ${isPrimary ? 'is-primary' : 'is-addon'}">
+                                        <i class="fas ${isPrimary ? 'fa-crown' : 'fa-code-branch'}"></i>
+                                        ${window.Utils.escapeHtml(c.card_category || 'Card')}
+                                    </span>
                                 </div>
                                 <span class="cc-status-pill ${statusCls}">
                                     <span class="cc-status-dot"></span>${window.Utils.escapeHtml(c.status || 'Active')}
@@ -459,12 +462,15 @@ window.Master = {
         const html = `
             <div class="vc-modal-wrap">
                 <!-- Hero 3D Card Showcase -->
-                <div class="vc-modal-hero" style="background: ${theme.grad};">
+                <div class="vc-modal-hero ${isPrimary ? 'is-primary-card' : 'is-addon-card'}" style="background: ${theme.grad};">
                     <div class="cc-card-sheen" aria-hidden="true"></div>
                     <div class="cc-card-top">
                         <div class="cc-chip-wrap">
                             <div class="cc-emv-chip"></div>
-                            <span class="cc-cat-tag ${isPrimary ? 'is-primary' : 'is-addon'}">${esc(card.card_category || 'Card')}</span>
+                            <span class="cc-cat-tag ${isPrimary ? 'is-primary' : 'is-addon'}">
+                                <i class="fas ${isPrimary ? 'fa-crown' : 'fa-code-branch'}"></i>
+                                ${esc(card.card_category || 'Card')}
+                            </span>
                         </div>
                         <span class="cc-status-pill ${statusCls}">
                             <span class="cc-status-dot"></span>${esc(card.status || 'Active')}

@@ -5,6 +5,23 @@
 
 window.GroupReport = {
     expenseFromDate: '2024-04-01',
+    viewMode: localStorage.getItem('ccms_gr_view') || 'charts',
+    singleWindow: false,
+    _charts: [],
+
+    setViewMode: function(mode) {
+        this.viewMode = mode === 'table' ? 'table' : 'charts';
+        localStorage.setItem('ccms_gr_view', this.viewMode);
+        this.render(this.container);
+    },
+
+    toggleSingleWindow: function(force) {
+        this.singleWindow = typeof force === 'boolean' ? force : !this.singleWindow;
+        if (this.singleWindow) {
+            this.viewMode = 'charts';
+        }
+        this.render(this.container);
+    },
 
     render: function(container) {
         this.container = container;
@@ -178,10 +195,21 @@ window.GroupReport = {
                     </div>
                 </div>
                 <div class="gr-toolbar-actions">
+                    <div class="view-switcher" role="group" aria-label="Group Report view mode">
+                        <button type="button" class="view-switch-btn ${this.viewMode === 'charts' ? 'active' : ''}" onclick="window.GroupReport.setViewMode('charts')">
+                            <i class="fas fa-chart-bar"></i> <span>Chart View</span>
+                        </button>
+                        <button type="button" class="view-switch-btn ${this.viewMode === 'table' ? 'active' : ''}" onclick="window.GroupReport.setViewMode('table')">
+                            <i class="fas fa-table"></i> <span>Table View</span>
+                        </button>
+                    </div>
                     <div class="gr-date-wrap">
                         <label for="gr-from-date">Expenses From:</label>
                         <input type="date" id="gr-from-date" class="form-control form-control-sm" value="${esc(this.expenseFromDate)}" onchange="window.GroupReport.updateFromDate(this.value)">
                     </div>
+                    <button type="button" class="btn btn-primary" id="gr-btn-single" onclick="window.GroupReport.toggleSingleWindow(true)" style="background:linear-gradient(135deg,#4361ee,#7209b7);border:none;border-radius:10px;font-weight:700;padding:8px 14px;">
+                        <i class="fas fa-expand"></i> Show in Single Window
+                    </button>
                     <button type="button" class="btn btn-outline" id="gr-btn-wa" onclick="window.GroupReport.copyWhatsAppBrief()" style="border-radius:10px;font-weight:700;">
                         <i class="fab fa-whatsapp text-success"></i> Copy WhatsApp Text
                     </button>
@@ -195,7 +223,25 @@ window.GroupReport = {
             </div>
 
             <!-- CAPTURABLE MANAGEMENT POSTER CANVAS -->
-            <div id="gr-capture-sheet" class="gr-poster">
+            <div id="gr-capture-sheet" class="gr-poster ${this.singleWindow ? 'gr-single-window' : ''}">
+                ${this.singleWindow ? `
+                <div class="gr-sw-topbar" data-html2canvas-ignore="true">
+                    <div class="gr-sw-brand"><i class="fas fa-tv"></i> SINGLE-WINDOW EXECUTIVE WALLBOARD</div>
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <button type="button" class="btn btn-sm btn-outline" onclick="window.App?.toggleTheme()" style="border-radius:8px;font-weight:700;">
+                            <i class="fas fa-adjust"></i> Theme
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="window.GroupReport.copyJpgToClipboard()" style="border-radius:8px;font-weight:700;">
+                            <i class="fas fa-copy"></i> Copy Image
+                        </button>
+                        <button type="button" class="btn btn-sm gr-btn-jpg" onclick="window.GroupReport.downloadJpg()" style="padding:6px 14px !important;">
+                            <i class="fas fa-file-image"></i> Download JPG
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="window.GroupReport.toggleSingleWindow(false)" style="border-radius:8px;font-weight:700;">
+                            <i class="fas fa-compress"></i> Exit [Esc]
+                        </button>
+                    </div>
+                </div>` : ''}
                 <!-- Masthead -->
                 <header class="gr-masthead">
                     <div class="gr-mh-left">
@@ -252,6 +298,8 @@ window.GroupReport = {
                     </div>
                 </section>
 
+                <!-- SECTION 2, 3 & 4 (wrapped in 3-col row when Single Window is active) -->
+                <div class="${this.singleWindow ? 'gr-sw-charts-row' : 'gr-normal-flow'}">
                 <!-- SECTION 2: NAMEWISE C/C SUMMARY -->
                 <section class="gr-section">
                     <div class="gr-sec-head">
@@ -262,7 +310,8 @@ window.GroupReport = {
                         </div>
                         <span class="gr-sec-pill">${nameRows.length} Holders</span>
                     </div>
-                    <div class="gr-table-wrap">
+                    <div class="${this.viewMode === 'charts' ? 'gr-chart-box' : 'gr-table-wrap'}">
+                        ${this.viewMode === 'charts' ? `<div style="height:310px;position:relative;"><canvas id="gr-chart-namewise"></canvas></div>` : `
                         <table class="gr-table">
                             <thead>
                                 <tr>
@@ -299,7 +348,7 @@ window.GroupReport = {
                                     <td class="text-right">${totalRewardsAll.toLocaleString('en-IN')}</td>
                                 </tr>
                             </tfoot>
-                        </table>
+                        </table>`}
                     </div>
                 </section>
 
@@ -313,7 +362,8 @@ window.GroupReport = {
                         </div>
                         <span class="gr-sec-pill">${bankRows.length} Banks</span>
                     </div>
-                    <div class="gr-table-wrap">
+                    <div class="${this.viewMode === 'charts' ? 'gr-chart-box' : 'gr-table-wrap'}">
+                        ${this.viewMode === 'charts' ? `<div style="height:310px;position:relative;"><canvas id="gr-chart-bankwise"></canvas></div>` : `
                         <table class="gr-table">
                             <thead>
                                 <tr>
@@ -350,7 +400,7 @@ window.GroupReport = {
                                     <td class="text-right">${totalRewardsAll.toLocaleString('en-IN')}</td>
                                 </tr>
                             </tfoot>
-                        </table>
+                        </table>`}
                     </div>
                 </section>
 
@@ -373,7 +423,8 @@ window.GroupReport = {
                             </div>
                         `).join('')}
                     </div>
-                    <div class="gr-table-wrap">
+                    <div class="${this.viewMode === 'charts' ? 'gr-chart-box' : 'gr-table-wrap'}">
+                        ${this.viewMode === 'charts' ? (payableRows.length ? `<div style="height:310px;position:relative;"><canvas id="gr-chart-payable"></canvas></div>` : `<div class="text-center gr-empty-ok py-4"><i class="fas fa-check-circle"></i> All credit card dues are settled!</div>`) : `
                         <table class="gr-table">
                             <thead>
                                 <tr>
@@ -405,9 +456,10 @@ window.GroupReport = {
                                     <td colspan="2">${payableRows.length} Pending Statements</td>
                                 </tr>
                             </tfoot>` : ''}
-                        </table>
+                        </table>`}
                     </div>
                 </section>
+                </div>
 
                 <!-- SECTION 5 & 6: RENEWALS (NEXT 3 MONTHS) & PENDING UPDATION -->
                 <div class="gr-bottom-split">
@@ -481,6 +533,416 @@ window.GroupReport = {
                 </footer>
             </div>
         `;
+
+        if (this.viewMode === 'charts') {
+            this._renderComboCharts({ nameRows, bankRows, payableRows, totalLimit, totalUsed, totalAvail });
+        }
+
+        if (this.singleWindow && !this._escBound) {
+            this._escBound = true;
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.singleWindow) {
+                    this.toggleSingleWindow(false);
+                }
+            });
+        }
+    },
+
+    _renderComboCharts: function({ nameRows, bankRows, payableRows }) {
+        if (!window.Chart) return;
+        this._charts.forEach(c => { try { c.destroy(); } catch (e) {} });
+        this._charts = [];
+
+        const isDark = document.documentElement.dataset.theme === 'dark';
+        const textColor = isDark ? '#e2e8f0' : '#1e293b';
+        const mutedColor = isDark ? '#94a3b8' : '#64748b';
+        const gridColor = isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(15, 23, 42, 0.06)';
+        const sliceBorder = isDark ? '#0f172a' : '#ffffff';
+        const fmtShort = (v) => window.Utils.formatCurrency(v).replace('.00', '');
+        const fmtFull = (v) => window.Utils.formatCurrency(v);
+        const fmtCompact = (v) => {
+            const n = Number(v || 0);
+            if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
+            if (n >= 1e5) return `₹${(n / 1e5).toFixed(1)}L`;
+            if (n >= 1e3) return `₹${(n / 1e3).toFixed(0)}K`;
+            return `₹${Math.round(n)}`;
+        };
+
+        // 1. Namewise: Next-Gen Gradient Horizontal Capsule Bars + Direct Inline Value/Util% Labels
+        const nameCanvas = document.getElementById('gr-chart-namewise');
+        if (nameCanvas && nameRows.length) {
+            const nCtx = nameCanvas.getContext('2d');
+            const w = nameCanvas.parentElement?.clientWidth || 420;
+            const mkGrad = (c1, c2) => {
+                const g = nCtx.createLinearGradient(0, 0, w, 0);
+                g.addColorStop(0, c1);
+                g.addColorStop(1, c2);
+                return g;
+            };
+
+            const nameBarLabelsPlugin = {
+                id: 'grNameBarLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx } = chart;
+                    const limitMeta = chart.getDatasetMeta(1); // end of stacked limit (Used + Avail)
+                    const expMeta = chart.getDatasetMeta(2);   // Expenses bar
+                    ctx.save();
+                    ctx.font = '700 10px Inter, system-ui, sans-serif';
+                    ctx.textBaseline = 'middle';
+                    nameRows.forEach((row, i) => {
+                        const limEl = limitMeta?.data?.[i];
+                        if (limEl) {
+                            const utilPct = row.limit > 0 ? Math.round((row.used / row.limit) * 100) : 0;
+                            ctx.fillStyle = isDark ? '#cbd5e1' : '#334155';
+                            ctx.fillText(`${fmtCompact(row.limit)} (${utilPct}% used)`, limEl.x + 6, limEl.y);
+                        }
+                        const expEl = expMeta?.data?.[i];
+                        if (expEl && row.exp > 0) {
+                            ctx.fillStyle = isDark ? '#a5b4fc' : '#4f46e5';
+                            ctx.fillText(fmtCompact(row.exp), expEl.x + 6, expEl.y);
+                        }
+                    });
+                    ctx.restore();
+                }
+            };
+
+            this._charts.push(new window.Chart(nameCanvas, {
+                type: 'bar',
+                plugins: [nameBarLabelsPlugin],
+                data: {
+                    labels: nameRows.map(r => r.name.split(' ')[0]),
+                    datasets: [
+                        {
+                            label: 'Used Limit',
+                            data: nameRows.map(r => r.used),
+                            backgroundColor: mkGrad('#e11d48', '#fb7185'),
+                            borderRadius: 6,
+                            borderSkipped: false,
+                            barPercentage: 0.72,
+                            categoryPercentage: 0.78,
+                            stack: 'limit'
+                        },
+                        {
+                            label: 'Available',
+                            data: nameRows.map(r => r.avail),
+                            backgroundColor: mkGrad('#059669', '#34d399'),
+                            borderRadius: 6,
+                            borderSkipped: false,
+                            barPercentage: 0.72,
+                            categoryPercentage: 0.78,
+                            stack: 'limit'
+                        },
+                        {
+                            label: 'Expenses',
+                            data: nameRows.map(r => r.exp),
+                            backgroundColor: mkGrad('#4f46e5', '#a855f7'),
+                            borderRadius: 6,
+                            borderSkipped: false,
+                            barPercentage: 0.72,
+                            categoryPercentage: 0.78,
+                            stack: 'expense'
+                        }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { right: 86 } },
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top', labels: { color: textColor, boxWidth: 10, padding: 10, font: { weight: '600', size: 10.5 } } },
+                        tooltip: {
+                            callbacks: {
+                                title: (items) => nameRows[items[0]?.dataIndex]?.name || '',
+                                afterBody: (items) => {
+                                    const row = nameRows[items[0]?.dataIndex];
+                                    if (!row) return '';
+                                    return [
+                                        `Cards: ${row.count}`,
+                                        `Total Limit: ${fmtFull(row.limit)}`,
+                                        `Reward Points: ${row.rewards.toLocaleString('en-IN')}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, beginAtZero: true, grid: { color: gridColor }, ticks: { color: mutedColor, callback: fmtCompact, font: { size: 10 } } },
+                        y: { stacked: true, grid: { display: false }, ticks: { color: textColor, font: { weight: '700', size: 11 } } }
+                    }
+                }
+            }));
+        }
+
+        // 2. Bankwise: Next-Gen 3-Layer Concentric Doughnut with Direct Ring Callout Pointers & Slice Labels
+        const bankCanvas = document.getElementById('gr-chart-bankwise');
+        if (bankCanvas && bankRows.length) {
+            const palette = [
+                [99, 102, 241],  // Indigo
+                [6, 182, 212],   // Cyan
+                [16, 185, 129],  // Emerald
+                [245, 158, 11],  // Amber
+                [244, 63, 94],   // Rose
+                [139, 92, 246],  // Violet
+                [59, 130, 246],  // Blue
+                [236, 72, 153],  // Pink
+                [20, 184, 166]   // Teal
+            ];
+            const rgba = (rgb, a) => `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${a})`;
+            const totalBankLimit = bankRows.reduce((s, r) => s + r.limit, 0) || 1;
+            const totalBankUsed = bankRows.reduce((s, r) => s + r.used, 0) || 1;
+            const totalBankExp = bankRows.reduce((s, r) => s + r.exp, 0) || 1;
+
+            const bankCalloutPlugin = {
+                id: 'grBankCallouts',
+                afterDraw(chart) {
+                    const outerMeta = chart.getDatasetMeta(0);
+                    const midMeta = chart.getDatasetMeta(1);
+                    const innerMeta = chart.getDatasetMeta(2);
+                    if (!outerMeta?.data?.[0] || !midMeta?.data?.[0] || !innerMeta?.data?.[0]) return;
+
+                    const { ctx } = chart;
+                    const cx = outerMeta.data[0].x;
+                    const cy = outerMeta.data[0].y;
+                    ctx.save();
+
+                    // 1) Center KPI inside inner cutout
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = mutedColor;
+                    ctx.font = '700 9.5px Inter, system-ui, sans-serif';
+                    ctx.fillText(`${bankRows.length} BANKS`, cx, cy - 8);
+                    ctx.fillStyle = textColor;
+                    ctx.font = '800 11.5px Inter, system-ui, sans-serif';
+                    ctx.fillText(fmtCompact(totalBankLimit), cx, cy + 7);
+
+                    // 2) Direct % labels on major outer slices (no hover needed)
+                    outerMeta.data.forEach((arc, i) => {
+                        const angle = arc.endAngle - arc.startAngle;
+                        if (angle < 0.34) return;
+                        const midAngle = (arc.startAngle + arc.endAngle) / 2;
+                        const r = (arc.innerRadius + arc.outerRadius) / 2;
+                        const lx = cx + Math.cos(midAngle) * r;
+                        const ly = cy + Math.sin(midAngle) * r;
+                        const pct = Math.round((bankRows[i].limit / totalBankLimit) * 100);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = '700 9.5px Inter, system-ui, sans-serif';
+                        ctx.fillText(`${pct}%`, lx, ly);
+                    });
+
+                    // 3) Crystal-clear Ring Callout Pointers on top-left so each layer is unmistakable
+                    const rings = [
+                        { arc: outerMeta.data[0], label: '1. LIMIT', angle: -Math.PI * 0.78, lx: cx - outerMeta.data[0].outerRadius - 12, ly: cy - outerMeta.data[0].outerRadius + 6, color: '#6366f1' },
+                        { arc: midMeta.data[0], label: '2. USED', angle: -Math.PI * 0.62, lx: cx - outerMeta.data[0].outerRadius - 12, ly: cy - outerMeta.data[0].outerRadius + 24, color: '#f43f5e' },
+                        { arc: innerMeta.data[0], label: '3. EXP', angle: -Math.PI * 0.48, lx: cx - outerMeta.data[0].outerRadius - 12, ly: cy - outerMeta.data[0].outerRadius + 42, color: '#10b981' }
+                    ];
+
+                    rings.forEach((rg) => {
+                        const midR = (rg.arc.innerRadius + rg.arc.outerRadius) / 2;
+                        const px = cx + Math.cos(rg.angle) * midR;
+                        const py = cy + Math.sin(rg.angle) * midR;
+                        const labelX = Math.max(8, rg.lx);
+                        const labelY = Math.max(14, rg.ly);
+
+                        // Pointer line + dot on exact ring
+                        ctx.strokeStyle = isDark ? 'rgba(226, 232, 240, 0.55)' : 'rgba(30, 41, 59, 0.45)';
+                        ctx.lineWidth = 1.2;
+                        ctx.beginPath();
+                        ctx.moveTo(labelX + 46, labelY);
+                        ctx.lineTo(px, py);
+                        ctx.stroke();
+
+                        ctx.fillStyle = rg.color;
+                        ctx.beginPath();
+                        ctx.arc(px, py, 3, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Pill badge for ring name
+                        ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)';
+                        ctx.strokeStyle = rg.color;
+                        ctx.lineWidth = 1.2;
+                        ctx.beginPath();
+                        if (ctx.roundRect) {
+                            ctx.roundRect(labelX, labelY - 8, 48, 16, 4);
+                        } else {
+                            ctx.rect(labelX, labelY - 8, 48, 16);
+                        }
+                        ctx.fill();
+                        ctx.stroke();
+
+                        ctx.fillStyle = textColor;
+                        ctx.font = '700 8.5px Inter, system-ui, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(rg.label, labelX + 24, labelY + 0.5);
+                    });
+
+                    ctx.restore();
+                }
+            };
+
+            this._charts.push(new window.Chart(bankCanvas, {
+                type: 'doughnut',
+                plugins: [bankCalloutPlugin],
+                data: {
+                    labels: bankRows.map(r => `${r.bank} (${r.count})`),
+                    datasets: [
+                        {
+                            label: '1. Total Limit',
+                            data: bankRows.map(r => r.limit),
+                            backgroundColor: bankRows.map((_, i) => rgba(palette[i % palette.length], 0.96)),
+                            borderColor: sliceBorder,
+                            borderWidth: 2,
+                            hoverOffset: 6
+                        },
+                        {
+                            label: '2. Used Limit',
+                            data: bankRows.map(r => r.used),
+                            backgroundColor: bankRows.map((_, i) => rgba(palette[i % palette.length], 0.68)),
+                            borderColor: sliceBorder,
+                            borderWidth: 2,
+                            hoverOffset: 4
+                        },
+                        {
+                            label: '3. Expenses',
+                            data: bankRows.map(r => r.exp),
+                            backgroundColor: bankRows.map((_, i) => rgba(palette[i % palette.length], 0.40)),
+                            borderColor: sliceBorder,
+                            borderWidth: 2,
+                            hoverOffset: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '34%',
+                    layout: { padding: { left: 46, top: 6, bottom: 4, right: 4 } },
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: textColor, boxWidth: 10, padding: 7, font: { weight: '600', size: 10 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: (items) => {
+                                    const row = bankRows[items[0]?.dataIndex];
+                                    return row ? `${row.bank} (${row.count} Cards)` : '';
+                                },
+                                label: (ctx) => {
+                                    const totals = [totalBankLimit, totalBankUsed, totalBankExp];
+                                    const val = Number(ctx.raw || 0);
+                                    const pct = ((val / (totals[ctx.datasetIndex] || 1)) * 100).toFixed(1);
+                                    return ` ${ctx.dataset.label}: ${fmtFull(val)} (${pct}%)`;
+                                },
+                                afterLabel: (ctx) => {
+                                    const row = bankRows[ctx.dataIndex];
+                                    return [
+                                        ` ── Bank Summary ──`,
+                                        ` Total Limit: ${fmtFull(row.limit)}`,
+                                        ` Used Limit: ${fmtFull(row.used)}`,
+                                        ` Available: ${fmtFull(row.avail)}`,
+                                        ` Expenses: ${fmtFull(row.exp)}`
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+        }
+
+        // 3. Payable Summary: Next-Gen Glowing Neon Area + Gradient Urgency Bars + Direct Amount Labels
+        const payCanvas = document.getElementById('gr-chart-payable');
+        if (payCanvas && payableRows.length) {
+            const pCtx = payCanvas.getContext('2d');
+            const h = payCanvas.parentElement?.clientHeight || 240;
+            const areaGrad = pCtx.createLinearGradient(0, 0, 0, h);
+            areaGrad.addColorStop(0, isDark ? 'rgba(56, 189, 248, 0.36)' : 'rgba(14, 165, 233, 0.28)');
+            areaGrad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+
+            const mkBarGrad = (topColor, botColor) => {
+                const g = pCtx.createLinearGradient(0, 0, 0, h);
+                g.addColorStop(0, topColor);
+                g.addColorStop(1, botColor);
+                return g;
+            };
+
+            const barColors = payableRows.map(r => {
+                if (r.urg.cls === 'urg-over') return mkBarGrad('rgba(244, 63, 94, 0.95)', 'rgba(225, 29, 72, 0.35)');
+                if (r.urg.cls === 'urg-soon') return mkBarGrad('rgba(249, 115, 22, 0.95)', 'rgba(234, 88, 12, 0.35)');
+                if (r.urg.cls === 'urg-4to7') return mkBarGrad('rgba(245, 158, 11, 0.95)', 'rgba(217, 119, 6, 0.35)');
+                if (r.urg.cls === 'urg-8to15') return mkBarGrad('rgba(59, 130, 246, 0.95)', 'rgba(37, 99, 235, 0.35)');
+                return mkBarGrad('rgba(16, 185, 129, 0.95)', 'rgba(5, 150, 105, 0.35)');
+            });
+
+            const payLabelPlugin = {
+                id: 'grPayBarLabels',
+                afterDatasetsDraw(chart) {
+                    const meta = chart.getDatasetMeta(0);
+                    if (!meta?.data) return;
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.font = '700 8.5px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    meta.data.forEach((bar, i) => {
+                        const val = payableRows[i]?.amountDue || 0;
+                        if (val >= 75000) {
+                            ctx.fillStyle = isDark ? '#e2e8f0' : '#1e293b';
+                            ctx.fillText(fmtCompact(val), bar.x, bar.y - 3);
+                        }
+                    });
+                    ctx.restore();
+                }
+            };
+
+            this._charts.push(new window.Chart(payCanvas, {
+                type: 'bar',
+                plugins: [payLabelPlugin],
+                data: {
+                    labels: payableRows.map(r => `${r.holder.split(' ')[0]} (${r.bank})`),
+                    datasets: [
+                        {
+                            label: 'Amount Due (₹)',
+                            data: payableRows.map(r => r.amountDue),
+                            backgroundColor: barColors,
+                            borderRadius: { topLeft: 6, topRight: 6 },
+                            yAxisID: 'y',
+                            order: 2
+                        },
+                        {
+                            type: 'line',
+                            label: 'Days Until Due',
+                            data: payableRows.map(r => r.diffDays ?? 0),
+                            borderColor: isDark ? '#38bdf8' : '#0284c7',
+                            backgroundColor: areaGrad,
+                            fill: true,
+                            borderWidth: 2.5,
+                            pointRadius: 3.5,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: isDark ? '#0f172a' : '#ffffff',
+                            pointBorderColor: isDark ? '#38bdf8' : '#0284c7',
+                            pointBorderWidth: 2,
+                            tension: 0.38,
+                            yAxisID: 'y1',
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'top', labels: { color: textColor, boxWidth: 10, font: { weight: '600', size: 10.5 } } } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: mutedColor, callback: fmtCompact, font: { size: 10 } } },
+                        y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: isDark ? '#38bdf8' : '#0284c7', callback: (v) => `${v}d`, font: { size: 10 } } },
+                        x: { grid: { display: false }, ticks: { color: mutedColor, maxRotation: 35, font: { size: 9.5, weight: '600' } } }
+                    }
+                }
+            }));
+        }
     },
 
     updateFromDate: function(val) {

@@ -667,6 +667,8 @@ window.App = {
                 content.scrollTop = scrollY;
             } else if (this.currentPage === 'reports' && window.Reports && window.Reports.currentReportId && typeof window.Reports.refreshCurrentReport === 'function') {
                 window.Reports.refreshCurrentReport();
+            } else if (this.currentPage === 'groupreport' && window.GroupReport && typeof window.GroupReport.render === 'function') {
+                window.GroupReport.render(content);
             }
         }
     },
