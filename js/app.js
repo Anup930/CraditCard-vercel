@@ -728,6 +728,54 @@ window.App = {
     _updateTimer: null,
     _updateCountdownInterval: null,
 
+    showAboutModal() {
+        const html = `
+            <div class="vc-modal-wrap">
+                <div style="background:linear-gradient(135deg,#090d1a 0%,#1e1b4b 55%,#312e81 100%);border-radius:16px;padding:22px;color:#ffffff;text-align:center;box-shadow:0 14px 32px rgba(15,23,42,0.3);">
+                    <div style="width:54px;height:54px;border-radius:15px;background:linear-gradient(135deg,#4361ee,#7209b7);display:inline-flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:10px;box-shadow:0 8px 20px rgba(67,97,238,0.45);">
+                        <i class="fas fa-credit-card"></i>
+                    </div>
+                    <h3 style="margin:0;font-size:1.25rem;font-weight:800;color:#ffffff;">Credit Card Management System</h3>
+                    <div style="margin-top:6px;">
+                        <span style="display:inline-block;background:rgba(16,185,129,0.2);border:1px solid rgba(52,211,153,0.45);color:#6ee7b7;padding:3px 12px;border-radius:999px;font-size:0.75rem;font-weight:800;">Version 3.0 Enterprise</span>
+                    </div>
+                </div>
+
+                <div class="vc-bento-box">
+                    <div class="vc-bento-title"><i class="fas fa-building"></i> Ownership &amp; Development</div>
+                    <div class="vc-detail-list">
+                        <div class="vc-detail-row">
+                            <span>App Version</span>
+                            <strong>CCMS v3.0</strong>
+                        </div>
+                        <div class="vc-detail-row">
+                            <span>Owned By</span>
+                            <strong>Gretex Group</strong>
+                        </div>
+                        <div class="vc-detail-row">
+                            <span>Developed By</span>
+                            <strong>IT Team</strong>
+                        </div>
+                        <div class="vc-detail-row">
+                            <span>Developer</span>
+                            <strong style="color:#4361ee;">Anup Kumar Singh</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="vc-modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="App.closeModal(); App.showUpdateModal();" style="border-radius:10px;font-weight:700;">
+                        <i class="fas fa-bolt"></i> View Changelog (v3.0)
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="App.closeModal();" style="border-radius:10px;font-weight:700;">
+                        Close
+                    </button>
+                </div>
+            </div>
+        `;
+        this.showModal('About CCMS', html);
+    },
+
     showUpdateModal() {
         const overlay = document.getElementById('update-modal-overlay');
         if (!overlay) return;
