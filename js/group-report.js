@@ -151,17 +151,17 @@ window.GroupReport = {
 
         // 6. LIST OF C/C PENDING FOR UPDATION OF MOBILE NO. / CO. ADDRESS
         const isMissing = (val) => {
-            const s = String(val || '').trim();
-            return !s || s === '-' || s === 'null' || s === 'undefined' || s === '(empty)' || s.includes('***');
+            const s = String(val || '').trim().toLowerCase();
+            return !s || s === '-' || s === 'null' || s === 'undefined' || s === '(empty)' || s === 'n/a';
         };
         const pendingUpdateRows = cards
-            .filter(c => isMissing(c.phone) || isMissing(c.address))
+            .filter(c => isMissing(c.phone || c.mobile || c.mobile_no) || isMissing(c.address || c.billing_address))
             .map(c => ({
                 holder: c.cardholder_name || c.primary_cardholder || 'Unknown',
                 bank: c.bank_name || 'Unknown',
                 last4: c.card_last4 || '',
-                missingPhone: isMissing(c.phone),
-                missingAddress: isMissing(c.address)
+                missingPhone: isMissing(c.phone || c.mobile || c.mobile_no),
+                missingAddress: isMissing(c.address || c.billing_address)
             }));
 
         const fmt = (n) => window.Utils.formatCurrency(n || 0);
