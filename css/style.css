@@ -824,8 +824,46 @@ body.sidebar-collapsed #main {
 body.sidebar-collapsed .sidebar-title,
 body.sidebar-collapsed .nav-section-label,
 body.sidebar-collapsed .nav-item span,
-body.sidebar-collapsed .btn-sidebar span {
+body.sidebar-collapsed .btn-sidebar span,
+body.sidebar-collapsed #btn-app-about span {
     display: none;
+}
+
+/* Floating Tooltip for Collapsed Sidebar Icons */
+.sidebar-hover-tooltip {
+    position: fixed;
+    z-index: 9999;
+    padding: 7px 13px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    color: #f8fafc;
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    box-shadow: 0 10px 26px rgba(2, 6, 23, 0.45);
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-6px, -50%);
+    transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sidebar-hover-tooltip.visible {
+    opacity: 1;
+    transform: translate(0, -50%);
+}
+
+.sidebar-hover-tooltip::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    background: #0f172a;
+    border-left: 1px solid rgba(99, 102, 241, 0.45);
+    border-bottom: 1px solid rgba(99, 102, 241, 0.45);
+    transform: translateY(-50%) rotate(45deg);
 }
 
 body.sidebar-collapsed .nav-item {
