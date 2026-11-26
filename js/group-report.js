@@ -88,21 +88,47 @@ window.GroupReport = {
         const bankRows = Object.values(bankMap).sort((a, b) => b.limit - a.limit);
 
         // 4. CREDIT CARD PAYABLE SUMMARY
+        const getUrgencyBucket = (diffDays) => {
+            if (diffDays === null) return { key: 'scheduled', label: 'Scheduled', cls: 'urg-ok' };
+            if (diffDays < 0)      return { key: 'overdue',   label: `Overdue (${Math.abs(diffDays)}d)`, cls: 'urg-over' };
+            if (diffDays === 0)    return { key: 'today',     label: 'Today', cls: 'urg-over' };
+            if (diffDays <= 3)     return { key: 'in3',       label: 'In 3 Days', cls: 'urg-soon' };
+            if (diffDays <= 7)     return { key: 'd4to7',     label: '4 to 7 Days', cls: 'urg-4to7' };
+            if (diffDays <= 15)    return { key: 'd8to15',    label: '8 to 15 Days', cls: 'urg-8to15' };
+            return { key: 'gt15', label: 'More than 15 Days', cls: 'urg-ok' };
+        };
+
+        const urgSummary = {
+            today:  { label: 'Today', count: 0, amount: 0, cls: 'urg-over' },
+            in3:    { label: 'In 3 Days', count: 0, amount: 0, cls: 'urg-soon' },
+            d4to7:  { label: '4 to 7 Days', count: 0, amount: 0, cls: 'urg-4to7' },
+            d8to15: { label: '8 to 15 Days', count: 0, amount: 0, cls: 'urg-8to15' },
+            gt15:   { label: 'More than 15 Days', count: 0, amount: 0, cls: 'urg-ok' }
+        };
+
         const payableRows = stmts
             .filter(s => s.payment_status !== 'Paid' && (window.Utils.parseNum(s.closing_outstanding) || 0) > 0)
             .map(s => {
                 const card = cards.find(c => String(c.card_id) === String(s.card_id)) || {};
                 const due = s.due_date ? new Date(s.due_date) : null;
-                const isOverdue = due ? due < today : false;
-                const diffDays = due ? Math.ceil((due - today) / (1000 * 60 * 60 * 24)) : null;
+                if (due && !isNaN(due.getTime())) due.setHours(0, 0, 0, 0);
+                const diffDays = (due && !isNaN(due.getTime())) ? Math.round((due - today) / (1000 * 60 * 60 * 24)) : null;
+                const isOverdue = diffDays !== null && diffDays < 0;
+                const amt = window.Utils.parseNum(s.closing_outstanding) || 0;
+                const urg = getUrgencyBucket(diffDays);
+                if (urgSummary[urg.key]) {
+                    urgSummary[urg.key].count += 1;
+                    urgSummary[urg.key].amount += amt;
+                }
                 return {
                     holder: card.cardholder_name || card.primary_cardholder || 'Unknown',
                     last4: card.card_last4 || '',
                     bank: card.bank_name || 'Unknown',
-                    amountDue: window.Utils.parseNum(s.closing_outstanding) || 0,
+                    amountDue: amt,
                     dueDate: s.due_date,
                     isOverdue,
-                    diffDays
+                    diffDays,
+                    urg
                 };
             })
             .sort((a, b) => new Date(a.dueDate || '2099-12-31') - new Date(b.dueDate || '2099-12-31'));
@@ -338,6 +364,15 @@ window.GroupReport = {
                         </div>
                         <span class="gr-sec-pill gr-pill-rose">${payableRows.length} Due &bull; ${fmt(totalPayableSum)}</span>
                     </div>
+                    <div class="gr-urg-strip">
+                        ${Object.values(urgSummary).map(b => `
+                            <div class="gr-urg-box ${b.cls}">
+                                <span class="gr-urg-box-lbl">${b.label}</span>
+                                <strong class="gr-urg-box-amt">${fmt(b.amount)}</strong>
+                                <small>${b.count} Card${b.count === 1 ? '' : 's'}</small>
+                            </div>
+                        `).join('')}
+                    </div>
                     <div class="gr-table-wrap">
                         <table class="gr-table">
                             <thead>
@@ -351,11 +386,7 @@ window.GroupReport = {
                             </thead>
                             <tbody>
                                 ${payableRows.length ? payableRows.map(r => {
-                                    const badge = r.isOverdue
-                                        ? `<span class="gr-urg-pill urg-over">Overdue ${Math.abs(r.diffDays)}d</span>`
-                                        : (r.diffDays !== null && r.diffDays <= 3
-                                            ? `<span class="gr-urg-pill urg-soon">Due in ${r.diffDays}d</span>`
-                                            : `<span class="gr-urg-pill urg-ok">${r.diffDays !== null ? `In ${r.diffDays}d` : 'Scheduled'}</span>`);
+                                    const badge = `<span class="gr-urg-pill ${r.urg.cls}">${esc(r.urg.label)}</span>`;
                                     return `
                                     <tr>
                                         <td><strong>${esc(r.holder)}</strong> ${r.last4 ? `<small class="gr-last4">(*${esc(r.last4)})</small>` : ''}</td>
