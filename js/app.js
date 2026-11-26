@@ -540,6 +540,7 @@ window.App = {
             transactions: 'Transactions',
             payments:     'Payments & Statements',
             reports:      'Reports',
+            groupreport:  'Group Report',
             hygiene:      'Data Hygiene',
             downlodedash: 'Downlode Dashboard',
             users:        'User Management',
@@ -562,6 +563,7 @@ window.App = {
             case 'transactions': if (window.Transactions  && Transactions.render)  Transactions.render(content);  break;
             case 'payments':     if (window.Payments      && Payments.render)      Payments.render(content);      break;
             case 'reports':      if (window.Reports       && Reports.render)       Reports.render(content);       break;
+            case 'groupreport':  if (window.GroupReport   && GroupReport.render)   GroupReport.render(content);   break;
             case 'hygiene':      if (window.Reports       && Reports.renderHygiene) Reports.renderHygiene(content); break;
             case 'downlodedash': if (window.DownlodeDash  && DownlodeDash.render)  DownlodeDash.render(content);  break;
             case 'users':        if (window.Users         && Users.render)         Users.render(content);         break;
