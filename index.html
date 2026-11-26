@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <script>
+        try {
+            var _t = localStorage.getItem('ccms_theme') === 'dark' ? 'dark' : 'light';
+            document.querySelector('meta[name="color-scheme"]').content = _t;
+            document.documentElement.dataset.theme = _t;
+        } catch (e) {}
+    </script>
     <title>Credit Card Management System</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
@@ -11,6 +19,7 @@
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/era-ai.css">
+    <link rel="stylesheet" href="css/dark-theme.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💳</text></svg>">
 </head>
 <body>
@@ -255,6 +264,9 @@
                         </span>
                         <button id="btn-change-password" class="btn btn-sm" onclick="Auth.showChangePasswordModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;padding:5px 12px;border-radius:100px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;cursor:pointer;font-weight:600;" title="Change your password">
                             <i class="fas fa-key"></i> <span>Change Password</span>
+                        </button>
+                        <button type="button" id="btn-theme-toggle" class="btn-theme-toggle" onclick="App.toggleTheme()" aria-pressed="false" aria-label="Switch to Dark Theme" title="Toggle Dark / Light Theme">
+                            <i class="fas fa-moon" id="theme-toggle-icon" aria-hidden="true"></i>
                         </button>
                         <button id="btn-logout" class="btn-icon" title="Logout" onclick="Auth.logout()" style="color:#ef476f;">
                             <i class="fas fa-sign-out-alt"></i>
