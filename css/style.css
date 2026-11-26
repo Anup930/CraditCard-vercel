@@ -286,12 +286,13 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    overflow: hidden;
+    padding-top: var(--header-height);
+    overflow-x: hidden;
     margin-left: var(--sidebar-width);
     transition: margin-left 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Header */
+/* Header (Frozen across entire app) */
 #header {
     height: var(--header-height);
     background: rgba(255, 255, 255, 0.86);
@@ -304,9 +305,12 @@ body {
     justify-content: space-between;
     gap: 12px;
     padding: 0 20px;
-    position: sticky;
+    position: fixed;
     top: 0;
-    z-index: 100;
+    left: var(--sidebar-width);
+    right: 0;
+    z-index: 400;
+    transition: left 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .header-left, .header-right {
@@ -819,6 +823,10 @@ body.sidebar-collapsed #sidebar {
 
 body.sidebar-collapsed #main {
     margin-left: var(--sidebar-collapsed);
+}
+
+body.sidebar-collapsed #header {
+    left: var(--sidebar-collapsed);
 }
 
 body.sidebar-collapsed .sidebar-title,
