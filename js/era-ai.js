@@ -846,19 +846,22 @@ Current Live Snapshot:
 Answer questions accurately, professionally, concisely with bullet points and bold financial numbers in Indian Rupees (₹).
 Do not make up fake data. Use the context provided. Respond in clear English/Hinglish as requested.`;
 
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [
-                            { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Question: ${userPrompt}` }] }
-                        ]
-                    })
-                });
+                const fallbackModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
+                for (const fm of fallbackModels) {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fm}:generateContent?key=${this.apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [
+                                { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Question: ${userPrompt}` }] }
+                            ]
+                        })
+                    });
 
-                const data = await res.json();
-                if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
-                    return { success: true, text: data.candidates[0].content.parts[0].text };
+                    const data = await res.json();
+                    if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+                        return { success: true, text: data.candidates[0].content.parts[0].text };
+                    }
                 }
             } catch(e) {
                 console.warn('[EraAI] Local Gemini API call error:', e);
