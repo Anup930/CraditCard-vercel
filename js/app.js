@@ -443,8 +443,13 @@ window.App = {
         if (sidebarToggle) {
             sidebarToggle.addEventListener('click', () => {
                 document.body.classList.toggle('sidebar-collapsed');
+                const tip = document.getElementById('sidebar-hover-tooltip');
+                if (tip) tip.classList.remove('visible');
             });
         }
+
+        // Floating hover tooltips for collapsed sidebar icons
+        this._initSidebarTooltips();
 
         // Topbar Cloud Sync button
         const btnSync = document.getElementById('btn-cloud-sync');
@@ -657,6 +662,39 @@ window.App = {
                 window.Reports.refreshCurrentReport();
             }
         }
+    },
+
+    _initSidebarTooltips() {
+        let tip = document.getElementById('sidebar-hover-tooltip');
+        if (!tip) {
+            tip = document.createElement('div');
+            tip.id = 'sidebar-hover-tooltip';
+            tip.className = 'sidebar-hover-tooltip';
+            tip.setAttribute('role', 'tooltip');
+            document.body.appendChild(tip);
+        }
+
+        const targets = document.querySelectorAll('#sidebar .nav-item, #sidebar .btn-sidebar, #sidebar #btn-app-about');
+        targets.forEach(el => {
+            const showTip = () => {
+                if (!document.body.classList.contains('sidebar-collapsed')) return;
+                const labelEl = el.querySelector('span:not(.badge)');
+                const text = (labelEl && labelEl.textContent.trim()) || el.getAttribute('title') || '';
+                if (!text) return;
+
+                const rect = el.getBoundingClientRect();
+                tip.textContent = text;
+                tip.style.left = `${rect.right + 12}px`;
+                tip.style.top = `${rect.top + rect.height / 2}px`;
+                tip.classList.add('visible');
+            };
+            const hideTip = () => tip.classList.remove('visible');
+
+            el.addEventListener('mouseenter', showTip);
+            el.addEventListener('mouseleave', hideTip);
+            el.addEventListener('focusin', showTip);
+            el.addEventListener('focusout', hideTip);
+        });
     },
 
     _spawnRipple(el, event) {
