@@ -196,6 +196,10 @@
                     <i class="fas fa-paper-plane"></i><span>Group Report</span>
                     <span class="badge" style="background:#10b981;color:#fff;font-size:0.62rem;margin-left:auto;padding:2px 6px;">JPG</span>
                 </a>
+                <a href="#" class="nav-item" data-page="smartsuite">
+                    <i class="fas fa-wand-magic-sparkles"></i><span>Smart Suite</span>
+                    <span class="badge" style="background:#6366f1;color:#fff;font-size:0.62rem;margin-left:auto;padding:2px 6px;">PRO</span>
+                </a>
                 <a href="#" class="nav-item" data-page="hygiene">
                     <i class="fas fa-broom"></i><span>Data Hygiene</span>
                 </a>
@@ -272,10 +276,26 @@
                         <button id="btn-change-password" class="btn btn-sm" onclick="Auth.showChangePasswordModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;padding:5px 12px;border-radius:100px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;cursor:pointer;font-weight:600;" title="Change your password">
                             <i class="fas fa-key"></i> <span>Change Password</span>
                         </button>
+                        <div id="ps-notif-wrap" class="ps-notif-wrap">
+                            <button type="button" id="btn-notif-bell" class="btn-theme-toggle" onclick="window.PremiumSuite?.toggleNotifications(event)" title="Live Portfolio Alerts">
+                                <i class="fas fa-bell" aria-hidden="true"></i>
+                                <span id="ps-notif-count" class="ps-notif-badge" style="display:none;">0</span>
+                            </button>
+                            <div id="ps-notif-popover" class="ps-notif-popover hidden">
+                                <div class="ps-notif-head">
+                                    <strong><i class="fas fa-bell"></i> Live Alerts</strong>
+                                    <button type="button" class="btn-icon" onclick="document.getElementById('ps-notif-popover').classList.add('hidden')" title="Close"><i class="fas fa-times"></i></button>
+                                </div>
+                                <div id="ps-notif-list" class="ps-notif-list"></div>
+                            </div>
+                        </div>
+                        <button type="button" id="btn-privacy-toggle" class="btn-theme-toggle" onclick="window.PremiumSuite?.togglePrivacyBlur()" aria-pressed="false" aria-label="Toggle Meeting Privacy Blur" title="Meeting Privacy Blur [Alt+P]">
+                            <i class="fas fa-eye" id="privacy-toggle-icon" aria-hidden="true"></i>
+                        </button>
                         <button type="button" id="btn-theme-toggle" class="btn-theme-toggle" onclick="App.toggleTheme()" aria-pressed="false" aria-label="Switch to Dark Theme" title="Toggle Dark / Light Theme">
                             <i class="fas fa-moon" id="theme-toggle-icon" aria-hidden="true"></i>
                         </button>
-                        <button id="btn-logout" class="btn-icon" title="Logout" onclick="Auth.logout()" style="color:#ef476f;">
+                        <button id="btn-logout" class="btn-icon btn-logout-pill" title="Logout" onclick="Auth.logout()">
                             <i class="fas fa-sign-out-alt"></i>
                         </button>
                     </div>
@@ -362,6 +382,7 @@
     <script src="js/payments.js"></script>
     <script src="js/reports.js"></script>
     <script src="js/group-report.js"></script>
+    <script src="js/premium-suite.js"></script>
     <script src="js/downlodedash.js"></script>
     <script src="js/users.js"></script>
     <script src="js/logs.js"></script>
