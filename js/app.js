@@ -394,6 +394,11 @@ window.App = {
             // Set up UI after data is ready
             this._setupUI();
 
+            // Boot Premium Suite (Cmd+K, Privacy Blur, Live Bell, Smart Suite)
+            if (window.PremiumSuite && typeof window.PremiumSuite.init === 'function') {
+                window.PremiumSuite.init();
+            }
+
             // Update card count badge
             this.updateCardCount();
 
@@ -546,6 +551,7 @@ window.App = {
             payments:     'Payments & Statements',
             reports:      'Reports',
             groupreport:  'Group Report',
+            smartsuite:   'Smart Suite',
             hygiene:      'Data Hygiene',
             downlodedash: 'Downlode Dashboard',
             users:        'User Management',
@@ -569,6 +575,7 @@ window.App = {
             case 'payments':     if (window.Payments      && Payments.render)      Payments.render(content);      break;
             case 'reports':      if (window.Reports       && Reports.render)       Reports.render(content);       break;
             case 'groupreport':  if (window.GroupReport   && GroupReport.render)   GroupReport.render(content);   break;
+            case 'smartsuite':   if (window.PremiumSuite  && PremiumSuite.render)  PremiumSuite.render(content);  break;
             case 'hygiene':      if (window.Reports       && Reports.renderHygiene) Reports.renderHygiene(content); break;
             case 'downlodedash': if (window.DownlodeDash  && DownlodeDash.render)  DownlodeDash.render(content);  break;
             case 'users':        if (window.Users         && Users.render)         Users.render(content);         break;

@@ -156,6 +156,9 @@ window.GroupReport = {
                         <label for="gr-from-date">Expenses From:</label>
                         <input type="date" id="gr-from-date" class="form-control form-control-sm" value="${esc(this.expenseFromDate)}" onchange="window.GroupReport.updateFromDate(this.value)">
                     </div>
+                    <button type="button" class="btn btn-outline" id="gr-btn-wa" onclick="window.GroupReport.copyWhatsAppBrief()" style="border-radius:10px;font-weight:700;">
+                        <i class="fab fa-whatsapp text-success"></i> Copy WhatsApp Text
+                    </button>
                     <button type="button" class="btn btn-outline" id="gr-btn-copy" onclick="window.GroupReport.copyJpgToClipboard()" style="border-radius:10px;font-weight:700;">
                         <i class="fas fa-copy"></i> Copy Image
                     </button>
@@ -537,6 +540,45 @@ window.GroupReport = {
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
             }
+        }
+    },
+
+    copyWhatsAppBrief: async function() {
+        const cards = window.DB.cards.getAll() || [];
+        const txns = window.DB.transactions.getAll() || [];
+        const stmts = window.DB.statements.getAll() || [];
+        const fromDateObj = new Date(this.expenseFromDate || '2024-04-01');
+        fromDateObj.setHours(0, 0, 0, 0);
+
+        let totalLimit = 0, totalUsed = 0, totalExp = 0;
+        cards.forEach(c => {
+            const m = window.DB.cards.getCardLimitMetrics ? window.DB.cards.getCardLimitMetrics(c.card_id) : { used: 0 };
+            totalLimit += window.Utils.parseNum(c.credit_limit) || 0;
+            totalUsed += window.Utils.parseNum(m.used) || 0;
+            totalExp += txns.filter(t => String(t.card_id) === String(c.card_id) && t.txn_type === 'Debit' && t.txn_date && new Date(t.txn_date) >= fromDateObj)
+                .reduce((s, t) => s + (window.Utils.parseNum(t.amount) || 0), 0);
+        });
+        const totalAvail = Math.max(0, totalLimit - totalUsed);
+        const unpaid = stmts.filter(s => s.payment_status !== 'Paid' && (window.Utils.parseNum(s.closing_outstanding) || 0) > 0);
+        const totalPayable = unpaid.reduce((s, x) => s + (window.Utils.parseNum(x.closing_outstanding) || 0), 0);
+
+        const fmt = (n) => window.Utils.formatCurrency(n);
+        const todayStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const text = [
+            `*GRETEX GROUP — DAILY C/C TREASURY BRIEF (${todayStr})*`,
+            `• *Total Limit:* ${fmt(totalLimit)} (${cards.length} Cards)`,
+            `• *Limit Used:* ${fmt(totalUsed)} (${totalLimit > 0 ? ((totalUsed / totalLimit) * 100).toFixed(1) : '0.0'}%)`,
+            `• *Balance Available:* ${fmt(totalAvail)}`,
+            `• *Expenses (from ${window.Utils.formatDate(this.expenseFromDate)}):* ${fmt(totalExp)}`,
+            `• *Pending Payables:* ${fmt(totalPayable)} (${unpaid.length} Statements)`,
+            `_Detailed visual report attached as JPG._`
+        ].join('\n');
+
+        try {
+            await navigator.clipboard.writeText(text);
+            if (window.App) window.App.showToast('WhatsApp summary copied to clipboard!', 'success');
+        } catch (err) {
+            if (window.App) window.App.showToast('Could not copy text: ' + err.message, 'error');
         }
     }
 };
