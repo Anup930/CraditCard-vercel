@@ -1,6 +1,6 @@
 /* ============================================================
-   ERA AI — Grand Full-Screen Executive Co-Pilot & App Controller
-   High-Resolution Enterprise Cockpit Layout
+   ERA AI — Next-Gen Holographic Neural Command Cockpit
+   Ultra-Premium Cyber-Executive UI
    ============================================================ */
 
 /* Floating Action Launcher (FAB - Bottom Right) */
@@ -14,22 +14,22 @@
     gap: 10px;
     padding: 12px 20px;
     border-radius: 100px;
-    background: linear-gradient(135deg, #3a0ca3 0%, #4361ee 50%, #7209b7 100%);
+    background: linear-gradient(135deg, #312e81 0%, #4f46e5 48%, #0ea5e9 100%);
     color: #ffffff;
     font-family: var(--font-family, 'Inter', sans-serif);
     font-size: 0.92rem;
-    font-weight: 700;
+    font-weight: 800;
     letter-spacing: 0.3px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    box-shadow: 0 10px 25px -5px rgba(67, 97, 238, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(125, 211, 252, 0.45);
+    box-shadow: 0 12px 32px -6px rgba(79, 70, 229, 0.65), 0 0 24px rgba(14, 165, 233, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
 }
 
 #era-ai-fab:hover {
-    transform: translateY(-3px) scale(1.03);
-    box-shadow: 0 16px 35px -5px rgba(114, 9, 183, 0.6), 0 0 20px rgba(67, 97, 238, 0.4);
+    transform: translateY(-4px) scale(1.04);
+    box-shadow: 0 18px 40px -6px rgba(79, 70, 229, 0.8), 0 0 32px rgba(56, 189, 248, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .era-fab-icon-wrap {
@@ -43,8 +43,8 @@
 
 .era-fab-icon-wrap i {
     font-size: 1.15rem;
-    color: #ffd166;
-    animation: eraPulseGlow 2.5s infinite ease-in-out;
+    color: #fde047;
+    animation: eraPulseGlow 2.4s infinite ease-in-out;
 }
 
 .era-fab-pulse {
@@ -52,20 +52,21 @@
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background: rgba(255, 209, 102, 0.4);
-    animation: eraRing 2.5s infinite;
+    background: rgba(56, 189, 248, 0.45);
+    animation: eraRing 2.4s infinite;
 }
 
 .era-badge-pill {
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #ffffff;
-    font-size: 0.68rem;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 20px;
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(52, 211, 153, 0.45);
+    color: #6ee7b7;
+    font-size: 0.66rem;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
 }
 
 /* Full-Screen Modal Overlay */
@@ -73,15 +74,18 @@
     position: fixed;
     inset: 0;
     z-index: 10000;
-    background: rgba(10, 15, 29, 0.88);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background:
+        radial-gradient(circle at 18% 20%, rgba(79, 70, 229, 0.22), transparent 45%),
+        radial-gradient(circle at 82% 80%, rgba(6, 182, 212, 0.18), transparent 45%),
+        rgba(3, 6, 16, 0.88);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 1;
     transition: opacity 0.25s ease-out;
-    padding: 20px;
+    padding: 18px;
 }
 
 #era-ai-overlay.era-hidden {
@@ -90,29 +94,50 @@
 
 /* Executive Full-Screen Cockpit Window */
 #era-ai-window {
+    position: relative;
     width: 95vw;
-    max-width: 1400px;
+    max-width: 1420px;
     height: 92vh;
     max-height: 960px;
-    background: #0b1120;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 22px;
-    box-shadow: 0 35px 80px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    background:
+        radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.14), transparent 38%),
+        radial-gradient(circle at 100% 100%, rgba(14, 165, 233, 0.12), transparent 40%),
+        #050914;
+    border: 1px solid rgba(99, 102, 241, 0.32);
+    border-radius: 24px;
+    box-shadow:
+        0 40px 100px -15px rgba(0, 0, 0, 0.92),
+        0 0 50px rgba(79, 70, 229, 0.22),
+        0 0 90px rgba(6, 182, 212, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     font-family: var(--font-family, 'Inter', sans-serif);
-    animation: eraScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: eraScaleUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Header */
+/* Cyber-HUD Header */
 .era-header {
-    background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
-    padding: 16px 24px;
+    position: relative;
+    background: linear-gradient(90deg, rgba(30, 27, 75, 0.85) 0%, rgba(15, 23, 42, 0.92) 55%, rgba(8, 47, 73, 0.78) 100%);
+    backdrop-filter: blur(16px);
+    padding: 15px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(56, 189, 248, 0.18);
+}
+
+.era-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent 0%, #6366f1 25%, #38bdf8 50%, #a855f7 75%, transparent 100%);
+    opacity: 0.75;
 }
 
 .era-header-left {
@@ -122,36 +147,41 @@
 }
 
 .era-avatar {
-    width: 44px;
-    height: 44px;
+    position: relative;
+    width: 46px;
+    height: 46px;
     border-radius: 14px;
-    background: linear-gradient(135deg, #4361ee, #7209b7);
+    background: linear-gradient(135deg, #4f46e5, #7c3aed, #06b6d4);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #ffd166;
+    color: #fde047;
     font-size: 1.3rem;
-    box-shadow: 0 6px 16px rgba(67, 97, 238, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 0 24px rgba(99, 102, 241, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .era-title-box h3 {
     margin: 0;
-    font-size: 1.15rem;
+    font-size: 1.16rem;
     font-weight: 800;
-    color: #f8fafc;
+    background: linear-gradient(90deg, #ffffff 0%, #bae6fd 65%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
     display: flex;
     align-items: center;
-    gap: 8px;
-    letter-spacing: -0.2px;
+    gap: 10px;
+    letter-spacing: -0.25px;
 }
 
 .era-subtitle {
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     color: #94a3b8;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 2px;
+    margin-top: 3px;
+    letter-spacing: 0.2px;
 }
 
 .era-status-dot {
@@ -159,7 +189,8 @@
     height: 8px;
     border-radius: 50%;
     background: #10b981;
-    box-shadow: 0 0 10px #10b981;
+    box-shadow: 0 0 12px #10b981, 0 0 4px #6ee7b7;
+    animation: eraStatusPulse 2s infinite ease-in-out;
 }
 
 .era-header-actions {
@@ -169,34 +200,40 @@
 }
 
 .era-btn-icon {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(148, 163, 184, 0.2);
     color: #cbd5e1;
-    padding: 7px 12px;
-    border-radius: 9px;
+    padding: 7px 13px;
+    border-radius: 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 600;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .era-btn-icon:hover {
-    background: rgba(255, 255, 255, 0.18);
+    background: rgba(99, 102, 241, 0.22);
+    border-color: rgba(129, 140, 248, 0.5);
     color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
 }
 
 .era-close-btn {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: rgba(239, 68, 68, 0.3);
-    color: #fca5a5;
+    background: rgba(244, 63, 94, 0.14);
+    border-color: rgba(244, 63, 94, 0.35);
+    color: #fda4af;
 }
+
 .era-close-btn:hover {
-    background: rgba(239, 68, 68, 0.35);
+    background: rgba(244, 63, 94, 0.32);
+    border-color: rgba(251, 113, 133, 0.65);
     color: #ffffff;
+    box-shadow: 0 4px 16px rgba(244, 63, 94, 0.35);
 }
 
 /* Cockpit Workspace (2 Columns) */
@@ -206,37 +243,51 @@
     overflow: hidden;
 }
 
-/* Left Sidebar Panel: Live Telemetry & Control Center */
+/* Left Sidebar Panel: Holographic Telemetry & Command Deck */
 .era-side-panel {
-    width: 340px;
-    background: #0f172a;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    width: 336px;
+    background: linear-gradient(180deg, rgba(11, 17, 34, 0.92) 0%, rgba(7, 11, 24, 0.96) 100%);
+    border-right: 1px solid rgba(56, 189, 248, 0.14);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    padding: 18px;
-    gap: 18px;
+    padding: 16px;
+    gap: 16px;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
 }
 
 .era-telemetry-card {
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
-    border: 1px solid rgba(67, 97, 238, 0.25);
-    border-radius: 14px;
-    padding: 16px;
+    position: relative;
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.85) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 16px;
+    padding: 15px;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.era-telemetry-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 14px;
+    right: 14px;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent, #38bdf8, #818cf8, transparent);
+    opacity: 0.8;
 }
 
 .era-telemetry-title {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #93c5fd;
+    font-size: 0.76rem;
+    font-weight: 800;
+    color: #7dd3fc;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.9px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -249,82 +300,113 @@
 }
 
 .era-telemetry-stat {
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 10px;
-    padding: 10px;
+    background: rgba(5, 9, 20, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 12px;
+    padding: 10px 11px;
+    transition: all 0.2s ease;
+}
+
+.era-telemetry-stat:hover {
+    border-color: rgba(56, 189, 248, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.14);
 }
 
 .era-stat-label {
-    font-size: 0.7rem;
+    font-size: 0.66rem;
     color: #94a3b8;
     text-transform: uppercase;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.5px;
 }
 
 .era-stat-val {
-    font-size: 1rem;
+    font-size: 1.02rem;
     font-weight: 800;
     color: #f8fafc;
-    margin-top: 2px;
+    margin-top: 3px;
+    font-variant-numeric: tabular-nums;
 }
 
 .era-progress-wrap {
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
 .era-progress-bar-bg {
     width: 100%;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
+    height: 7px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
     overflow: hidden;
     margin-top: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .era-progress-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
-    border-radius: 10px;
-    transition: width 0.4s ease;
+    background: linear-gradient(90deg, #10b981, #38bdf8, #a855f7, #f43f5e);
+    border-radius: 999px;
+    transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
 }
 
 /* Category Quick Actions in Left Panel */
 .era-panel-section-title {
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: 0.7rem;
+    font-weight: 800;
     color: #64748b;
     text-transform: uppercase;
-    letter-spacing: 0.6px;
-    margin-bottom: 6px;
+    letter-spacing: 0.9px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
 .era-side-action-btn {
+    position: relative;
     width: 100%;
     text-align: left;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.1);
     color: #cbd5e1;
     font-size: 0.82rem;
-    font-weight: 500;
+    font-weight: 600;
     padding: 9px 12px;
-    border-radius: 10px;
+    border-radius: 11px;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 10px;
-    transition: all 0.2s;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     margin-bottom: 6px;
+    overflow: hidden;
+}
+
+.era-side-action-btn::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    border-radius: 0 4px 4px 0;
+    background: linear-gradient(180deg, #38bdf8, #818cf8);
+    opacity: 0;
+    transition: opacity 0.2s;
 }
 
 .era-side-action-btn:hover {
-    background: rgba(67, 97, 238, 0.2);
-    border-color: rgba(67, 97, 238, 0.4);
-    color: #93c5fd;
-    transform: translateX(3px);
+    background: linear-gradient(90deg, rgba(79, 70, 229, 0.22), rgba(14, 165, 233, 0.1));
+    border-color: rgba(56, 189, 248, 0.42);
+    color: #ffffff;
+    transform: translateX(4px);
+    box-shadow: 0 4px 14px rgba(14, 165, 233, 0.14);
+}
+
+.era-side-action-btn:hover::before {
+    opacity: 1;
 }
 
 .era-side-action-btn i {
@@ -333,12 +415,16 @@
     text-align: center;
 }
 
-/* Right Main Panel: Conversational Workspace */
+/* Right Main Panel: Cyber-Grid Conversational Workspace */
 .era-main-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #070b14;
+    background:
+        radial-gradient(rgba(56, 189, 248, 0.07) 1px, transparent 1px),
+        radial-gradient(circle at 75% 20%, rgba(99, 102, 241, 0.09), transparent 45%),
+        #040711;
+    background-size: 24px 24px, 100% 100%, 100% 100%;
     overflow: hidden;
 }
 
@@ -346,19 +432,19 @@
 .era-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
+    padding: 24px 28px;
     display: flex;
     flex-direction: column;
     gap: 18px;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
 }
 
 .era-msg {
     display: flex;
     gap: 14px;
-    max-width: 85%;
-    animation: eraFadeIn 0.25s ease-out;
+    max-width: 84%;
+    animation: eraFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .era-msg-user {
@@ -371,8 +457,8 @@
 }
 
 .era-msg-avatar {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -383,37 +469,41 @@
 }
 
 .era-msg-ai .era-msg-avatar {
-    background: linear-gradient(135deg, #4361ee, #7209b7);
-    color: #ffd166;
-    box-shadow: 0 4px 10px rgba(67, 97, 238, 0.35);
+    background: linear-gradient(135deg, #4f46e5, #7c3aed, #06b6d4);
+    color: #fde047;
+    border: 1px solid rgba(125, 211, 252, 0.35);
+    box-shadow: 0 0 18px rgba(79, 70, 229, 0.45);
 }
 
 .era-msg-user .era-msg-avatar {
-    background: #334155;
-    color: #f8fafc;
+    background: linear-gradient(135deg, #1e293b, #334155);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .era-msg-bubble {
-    padding: 14px 18px;
-    border-radius: 16px;
+    padding: 15px 20px;
+    border-radius: 18px;
     font-size: 0.92rem;
-    line-height: 1.6;
+    line-height: 1.65;
     word-break: break-word;
 }
 
 .era-msg-user .era-msg-bubble {
-    background: linear-gradient(135deg, #4361ee 0%, #3a56d4 100%);
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 55%, #0ea5e9 100%);
     color: #ffffff;
+    border: 1px solid rgba(191, 219, 254, 0.32);
     border-bottom-right-radius: 4px;
-    box-shadow: 0 4px 14px rgba(67, 97, 238, 0.3);
+    box-shadow: 0 10px 24px rgba(79, 70, 229, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .era-msg-ai .era-msg-bubble {
-    background: #131c31;
+    background: linear-gradient(145deg, rgba(17, 25, 48, 0.85) 0%, rgba(10, 15, 30, 0.92) 100%);
+    backdrop-filter: blur(14px);
     color: #e2e8f0;
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(56, 189, 248, 0.2);
     border-bottom-left-radius: 4px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .era-msg-bubble p {
@@ -423,7 +513,8 @@
     margin-bottom: 0;
 }
 .era-msg-bubble strong {
-    color: #67e8f9;
+    color: #38bdf8;
+    font-weight: 700;
 }
 .era-msg-bubble ul, .era-msg-bubble ol {
     margin: 8px 0 8px 22px;
@@ -432,25 +523,27 @@
     margin-bottom: 6px;
 }
 .era-msg-bubble code {
-    background: rgba(0, 0, 0, 0.4);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: monospace;
-    font-size: 0.85rem;
+    background: rgba(14, 165, 233, 0.14);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.84rem;
     color: #fde047;
 }
 
 /* Action Execution Card inside AI bubble */
 .era-action-card {
-    background: rgba(15, 23, 42, 0.9);
-    border: 1px solid rgba(67, 97, 238, 0.4);
-    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 27, 75, 0.72));
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    border-radius: 14px;
     padding: 14px 16px;
-    margin-top: 10px;
+    margin-top: 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 .era-action-header {
@@ -463,10 +556,10 @@
 }
 
 .era-action-btn {
-    background: linear-gradient(135deg, #4361ee, #7209b7);
+    background: linear-gradient(135deg, #4f46e5, #0ea5e9);
     color: #ffffff;
-    border: none;
-    border-radius: 8px;
+    border: 1px solid rgba(186, 230, 253, 0.35);
+    border-radius: 10px;
     padding: 8px 16px;
     font-size: 0.84rem;
     font-weight: 700;
@@ -475,37 +568,38 @@
     align-items: center;
     gap: 8px;
     transition: all 0.2s;
-    box-shadow: 0 4px 12px rgba(67, 97, 238, 0.3);
+    box-shadow: 0 6px 18px rgba(79, 70, 229, 0.4);
 }
 
 .era-action-btn:hover {
-    background: linear-gradient(135deg, #3a56d4, #5c0894);
+    background: linear-gradient(135deg, #4338ca, #0284c7);
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(114, 9, 183, 0.45);
+    box-shadow: 0 10px 24px rgba(14, 165, 233, 0.5);
 }
 
-/* Big Input Container */
+/* Floating Holographic Command Bar */
 .era-input-container {
-    padding: 16px 24px;
-    background: #0f172a;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 14px 26px 18px;
+    background: linear-gradient(180deg, rgba(4, 7, 17, 0) 0%, rgba(8, 13, 28, 0.92) 35%, #070b17 100%);
+    border-top: 1px solid rgba(56, 189, 248, 0.12);
 }
 
 .era-input-wrap {
     display: flex;
     align-items: center;
     gap: 12px;
-    background: #1e293b;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 14px;
-    padding: 8px 14px;
-    transition: all 0.2s;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(99, 102, 241, 0.32);
+    border-radius: 16px;
+    padding: 8px 12px 8px 14px;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .era-input-wrap:focus-within {
-    border-color: #4361ee;
-    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.3);
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25), 0 12px 34px rgba(79, 70, 229, 0.32);
 }
 
 #era-input {
@@ -526,51 +620,61 @@
 }
 
 .era-input-btn {
-    background: transparent;
-    border: none;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: #94a3b8;
     width: 38px;
     height: 38px;
-    border-radius: 10px;
+    border-radius: 11px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s;
-    font-size: 1.05rem;
+    font-size: 1.02rem;
 }
 
 .era-input-btn:hover {
     color: #f8fafc;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(56, 189, 248, 0.18);
+    border-color: rgba(56, 189, 248, 0.4);
 }
 
 #era-mic-btn.listening {
-    color: #ef4444;
+    color: #fb7185;
+    border-color: rgba(244, 63, 94, 0.6);
     animation: eraPulseMic 1.2s infinite ease-in-out;
 }
 
 #era-send-btn {
-    background: linear-gradient(135deg, #4361ee, #7209b7);
+    background: linear-gradient(135deg, #4f46e5, #7c3aed, #0ea5e9);
+    border: 1px solid rgba(186, 230, 253, 0.4);
     color: #ffffff;
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 40px;
     border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45);
 }
 
 #era-send-btn:hover {
-    transform: scale(1.05);
+    transform: scale(1.06);
+    box-shadow: 0 6px 22px rgba(14, 165, 233, 0.6);
 }
 
 /* Animations */
 @keyframes eraScaleUp {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: scale(0.95) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @keyframes eraPulseGlow {
-    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(255, 209, 102, 0.4)); }
-    50% { transform: scale(1.1); filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.9)); }
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 3px rgba(253, 224, 71, 0.45)); }
+    50% { transform: scale(1.12); filter: drop-shadow(0 0 10px rgba(253, 224, 71, 0.95)); }
+}
+
+@keyframes eraStatusPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.65; transform: scale(1.25); }
 }
 
 @keyframes eraRing {
@@ -579,13 +683,13 @@
 }
 
 @keyframes eraFadeIn {
-    from { opacity: 0; transform: translateY(8px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes eraPulseMic {
-    0%, 100% { transform: scale(1); background: rgba(239, 68, 68, 0.2); }
-    50% { transform: scale(1.15); background: rgba(239, 68, 68, 0.45); }
+    0%, 100% { transform: scale(1); background: rgba(244, 63, 94, 0.2); }
+    50% { transform: scale(1.14); background: rgba(244, 63, 94, 0.45); }
 }
 
 /* Responsive adjustments */
@@ -597,6 +701,6 @@
         width: 100%;
         max-height: 200px;
         border-right: none;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid rgba(56, 189, 248, 0.16);
     }
 }
