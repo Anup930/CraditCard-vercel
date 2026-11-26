@@ -1,6 +1,7 @@
 window.Transactions = {
     currentPage: 1,
     pageSize: 15,
+    viewMode: localStorage.getItem('ccms_txn_view') || 'table',
     filters: {
         dateFrom: '',
         dateTo: '',
@@ -9,23 +10,48 @@ window.Transactions = {
         search: ''
     },
 
+    setViewMode: function(mode) {
+        this.viewMode = mode === 'cards' ? 'cards' : 'table';
+        localStorage.setItem('ccms_txn_view', this.viewMode);
+        document.querySelectorAll('.txn-view-btn').forEach(btn => {
+            const active = btn.dataset.view === this.viewMode;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        this.renderData();
+    },
+
+    clearFilters: function() {
+        this.filters = { dateFrom: '', dateTo: '', cardId: '', type: '', search: '' };
+        this.currentPage = 1;
+        this.render(this.container);
+    },
+
     render: function(container) {
         this.container = container;
         this.container.innerHTML = '';
 
         const header = document.createElement('div');
-        header.className = 'page-header d-flex justify-content-between align-items-center mb-4';
+        header.className = 'page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4';
         header.innerHTML = `
             <div>
-                <h2 class="page-title">Transactions</h2>
+                <h2 class="page-title">Transactions Ledger</h2>
                 <div class="page-subtitle text-muted" id="txn-count">Loading transactions...</div>
             </div>
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-primary" onclick="window.DataImport.openModal('transactions')">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="view-switcher" role="group" aria-label="Transactions view mode">
+                    <button type="button" class="view-switch-btn txn-view-btn ${this.viewMode === 'table' ? 'active' : ''}" data-view="table" aria-pressed="${this.viewMode === 'table'}" onclick="window.Transactions.setViewMode('table')">
+                        <i class="fas fa-table"></i> <span>Table View</span>
+                    </button>
+                    <button type="button" class="view-switch-btn txn-view-btn ${this.viewMode === 'cards' ? 'active' : ''}" data-view="cards" aria-pressed="${this.viewMode === 'cards'}" onclick="window.Transactions.setViewMode('cards')">
+                        <i class="fas fa-th-large"></i> <span>Card View</span>
+                    </button>
+                </div>
+                <button class="btn btn-outline" onclick="window.DataImport.openModal('transactions')" style="background:#eef2ff;color:#4361ee;border-color:#c7d2fe;border-radius:8px;font-weight:600;">
                     <i class="fas fa-file-import"></i> Import
                 </button>
-                <button class="btn btn-outline-primary" onclick="window.Transactions.exportExcel()">
-                    <i class="fas fa-file-export"></i> Export to Excel
+                <button class="btn btn-primary" onclick="window.Transactions.exportExcel()" style="border-radius:8px;font-weight:600;">
+                    <i class="fas fa-file-excel"></i> Export to Excel
                 </button>
             </div>
         `;
@@ -125,100 +151,156 @@ window.Transactions = {
         // Calculate Summary
         let totalDebits = 0;
         let totalCredits = 0;
+        let debitCount = 0;
+        let creditCount = 0;
         txns.forEach(t => {
-            if(t.txn_type === 'Debit') totalDebits += t.amount;
-            else if(t.txn_type === 'Credit') totalCredits += t.amount;
+            if(t.txn_type === 'Debit') { totalDebits += t.amount; debitCount++; }
+            else if(t.txn_type === 'Credit') { totalCredits += t.amount; creditCount++; }
         });
         const net = totalCredits - totalDebits;
-        
+
+        this.summaryWrapper.className = 'txn-kpi-grid mb-4';
         this.summaryWrapper.innerHTML = `
-            <div class="col-md-4">
-                <div class="card bg-danger text-white p-3 shadow-sm">
-                    <h6 class="mb-1">Total Debits</h6>
-                    <h3 class="mb-0">${window.Utils.formatCurrency(totalDebits)}</h3>
+            <div class="txn-kpi-card kpi-debit">
+                <div class="txn-kpi-top">
+                    <span class="txn-kpi-lbl">Total Debits</span>
+                    <span class="txn-kpi-icon"><i class="fas fa-arrow-up"></i></span>
                 </div>
+                <div class="txn-kpi-val">${window.Utils.formatCurrency(totalDebits)}</div>
+                <div class="txn-kpi-sub">${debitCount.toLocaleString('en-IN')} debit entries</div>
             </div>
-            <div class="col-md-4">
-                <div class="card bg-success text-white p-3 shadow-sm">
-                    <h6 class="mb-1">Total Credits</h6>
-                    <h3 class="mb-0">${window.Utils.formatCurrency(totalCredits)}</h3>
+            <div class="txn-kpi-card kpi-credit">
+                <div class="txn-kpi-top">
+                    <span class="txn-kpi-lbl">Total Credits</span>
+                    <span class="txn-kpi-icon"><i class="fas fa-arrow-down"></i></span>
                 </div>
+                <div class="txn-kpi-val">${window.Utils.formatCurrency(totalCredits)}</div>
+                <div class="txn-kpi-sub">${creditCount.toLocaleString('en-IN')} credit entries</div>
             </div>
-            <div class="col-md-4">
-                <div class="card ${net >= 0 ? 'bg-primary' : 'bg-warning text-dark'} text-white p-3 shadow-sm">
-                    <h6 class="mb-1">Net Amount</h6>
-                    <h3 class="mb-0">${window.Utils.formatCurrency(Math.abs(net))} ${net < 0 ? '(Dr)' : '(Cr)'}</h3>
+            <div class="txn-kpi-card ${net >= 0 ? 'kpi-net-cr' : 'kpi-net-dr'}">
+                <div class="txn-kpi-top">
+                    <span class="txn-kpi-lbl">Net Position</span>
+                    <span class="txn-kpi-icon"><i class="fas fa-balance-scale"></i></span>
                 </div>
+                <div class="txn-kpi-val">${window.Utils.formatCurrency(Math.abs(net))} <span class="txn-net-tag">${net < 0 ? 'Dr' : 'Cr'}</span></div>
+                <div class="txn-kpi-sub">${txns.length.toLocaleString('en-IN')} filtered transactions</div>
             </div>
         `;
 
         const pageSize = this.pageSize || 15;
         const pageData = window.Utils.paginate(txns.length, this.currentPage, pageSize);
         const currentData = txns.slice(pageData.start, pageData.end);
-        
+
         const allCards = window.DB.cards.getAll() || [];
         const getCardInfo = (id) => {
             const c = allCards.find(card => card.card_id === id);
             return c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unmapped';
         };
+        const esc = window.Utils.escapeHtml;
 
-        let html = `
-            <div class="table-responsive">
-            <table class="data-table table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Date</th>
-                        <th>Stmt Month</th>
-                        <th>Ledger</th>
-                        <th>Description</th>
-                        <th>Type</th>
-                        <th class="text-end">Amount</th>
-                        <th>Category</th>
-                        <th>Card</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
+        let html = '';
 
-        if(currentData.length === 0) {
-            html += `<tr><td colspan="10" class="text-center py-4 empty-state">No transactions match filters.</td></tr>`;
+        if (this.viewMode === 'cards') {
+            if (currentData.length === 0) {
+                html = `<div class="empty-state py-5"><i class="fas fa-exchange-alt mb-2" style="font-size:2.5rem;opacity:0.35;"></i><h4>No transactions match filters</h4></div>`;
+            } else {
+                html = `<div class="txn-cards-grid">`;
+                currentData.forEach((t, i) => {
+                    const isCredit = t.txn_type === 'Credit';
+                    const stmtLabel = t.statement_month ? window.Utils.formatMonthYear(t.statement_month) : window.Utils.formatMonthYear(t.txn_date);
+                    html += `
+                        <article class="txn-receipt-card ${isCredit ? 'is-credit' : 'is-debit'}" style="animation-delay:${Math.min(i * 25, 240)}ms;">
+                            <div class="txn-rc-top">
+                                <span class="vivid-pill ${isCredit ? 'pill-status-active' : 'pill-status-blocked'}">
+                                    <span class="pill-dot"></span>${esc(t.txn_type || 'Debit')}
+                                </span>
+                                <span class="txn-rc-date"><i class="far fa-calendar-alt"></i> ${window.Utils.formatDate(t.txn_date)}</span>
+                            </div>
+
+                            <div class="txn-rc-amount ${isCredit ? 'amt-cr' : 'amt-dr'}">
+                                ${isCredit ? '+' : '−'}${window.Utils.formatCurrency(t.amount)}
+                            </div>
+
+                            <div class="txn-rc-desc" title="${esc(t.description || '')}">
+                                ${esc(t.description || 'No description')}
+                            </div>
+
+                            <div class="txn-rc-tags">
+                                <span class="ledger-pill"><i class="fas fa-book" style="margin-right:4px;"></i>${esc(t.zoho_ledger || 'Unmapped')}</span>
+                                <span class="vivid-pill pill-cat-addon"><i class="fas fa-calendar-check"></i> ${esc(stmtLabel)}</span>
+                            </div>
+
+                            <div class="txn-rc-footer">
+                                <div class="txn-rc-card">
+                                    <i class="fas fa-credit-card"></i>
+                                    <span>${esc(getCardInfo(t.card_id))}</span>
+                                </div>
+                                <button type="button" class="act-btn act-view" title="View Receipt" onclick="window.Transactions.viewTxn('${esc(t.txn_id)}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </article>
+                    `;
+                });
+                html += `</div>`;
+            }
         } else {
-            currentData.forEach(t => {
-                const typeClass = t.txn_type === 'Credit' ? 'bg-success' : 'bg-danger';
-                const amtColor = t.txn_type === 'Credit' ? 'text-success' : 'text-danger';
-                let stmtMonthBadge = '';
-                if (t.statement_month) {
-                    if (t._statement_month_auto) {
-                        stmtMonthBadge = `<span class="badge bg-light text-primary border" title="Auto-calculated from card statement cycle" style="font-weight:600;"><i class="fas fa-calculator me-1"></i>${window.Utils.formatMonthYear(t.statement_month)}</span>`;
-                    } else {
-                        stmtMonthBadge = `<span class="badge bg-light text-primary border" title="Explicit from Statement Month column" style="font-weight:600;"><i class="fas fa-calendar-check me-1"></i>${window.Utils.formatMonthYear(t.statement_month)}</span>`;
-                    }
-                } else {
-                    stmtMonthBadge = `<span class="badge bg-light text-muted border" title="Derived from Txn Date">${window.Utils.formatMonthYear(t.txn_date)}</span>`;
-                }
-                
-                html += `
-                    <tr>
-                        <td>${window.Utils.formatDate(t.txn_date)}</td>
-                        <td>${stmtMonthBadge}</td>
-                        <td>${window.Utils.escapeHtml(t.zoho_ledger || '')}</td>
-                        <td title="${window.Utils.escapeHtml(t.description || '')}">${window.Utils.truncate(t.description || '', 40)}</td>
-                        <td><span class="badge ${typeClass}">${t.txn_type}</span></td>
-                        <td class="text-end fw-bold ${amtColor}">${window.Utils.formatCurrency(t.amount)}</td>
-                        <td>${window.Utils.escapeHtml(t.category || '')}</td>
-                        <td>${getCardInfo(t.card_id)}</td>
-                        <td><span class="badge bg-secondary">${t.status || 'Imported'}</span></td>
-                        <td>
-                            <button class="btn btn-sm btn-icon text-primary" onclick="window.Transactions.viewTxn('${t.txn_id}')"><i class="fas fa-eye"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
+            html = `
+                <div class="master-table-scroll" tabindex="0" role="region" aria-label="Transactions Table">
+                <table class="data-table master-colorful-table table w-100 mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Stmt Month</th>
+                            <th>Ledger</th>
+                            <th>Description</th>
+                            <th>Type</th>
+                            <th class="text-end">Amount</th>
+                            <th>Category</th>
+                            <th>Card</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
 
-        html += `</tbody></table></div>`;
+            if(currentData.length === 0) {
+                html += `<tr><td colspan="10" class="text-center py-4 empty-state">No transactions match filters.</td></tr>`;
+            } else {
+                currentData.forEach(t => {
+                    const isCredit = t.txn_type === 'Credit';
+                    const accent = isCredit ? '#10b981' : '#f43f5e';
+                    let stmtMonthBadge = '';
+                    if (t.statement_month) {
+                        const icon = t._statement_month_auto ? 'fa-calculator' : 'fa-calendar-check';
+                        const title = t._statement_month_auto ? 'Auto-calculated from card statement cycle' : 'Explicit from Statement Month column';
+                        stmtMonthBadge = `<span class="vivid-pill pill-cat-addon" title="${title}"><i class="fas ${icon}"></i>${window.Utils.formatMonthYear(t.statement_month)}</span>`;
+                    } else {
+                        stmtMonthBadge = `<span class="vivid-pill pill-status-inactive" title="Derived from Txn Date">${window.Utils.formatMonthYear(t.txn_date)}</span>`;
+                    }
+
+                    html += `
+                        <tr class="${isCredit ? 'row-primary' : 'row-addon'}" style="--row-accent: ${accent};">
+                            <td data-label="Date"><span class="sr-pill" style="white-space:nowrap;">${window.Utils.formatDate(t.txn_date)}</span></td>
+                            <td data-label="Stmt Month">${stmtMonthBadge}</td>
+                            <td data-label="Ledger"><span class="ledger-pill">${esc(t.zoho_ledger || '')}</span></td>
+                            <td data-label="Description" title="${esc(t.description || '')}">${esc(window.Utils.truncate(t.description || '', 40))}</td>
+                            <td data-label="Type"><span class="vivid-pill ${isCredit ? 'pill-status-active' : 'pill-status-blocked'}"><span class="pill-dot"></span>${esc(t.txn_type || 'Debit')}</span></td>
+                            <td data-label="Amount" class="text-end"><span class="txn-amt-pill ${isCredit ? 'amt-cr' : 'amt-dr'}">${window.Utils.formatCurrency(t.amount)}</span></td>
+                            <td data-label="Category"><span class="vivid-pill pill-status-inactive">${esc(t.category || 'Uncategorized')}</span></td>
+                            <td data-label="Card"><span class="owner-text">${esc(getCardInfo(t.card_id))}</span></td>
+                            <td data-label="Status"><span class="vivid-pill pill-status-active"><span class="pill-dot"></span>${esc(t.status || 'Imported')}</span></td>
+                            <td data-label="Action">
+                                <button class="act-btn act-view" title="View Receipt" onclick="window.Transactions.viewTxn('${esc(t.txn_id)}')"><i class="fas fa-eye"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            html += `</tbody></table></div>`;
+        }
 
         html += `
         <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -270,26 +352,76 @@ window.Transactions = {
         const txn = txns.find(t => String(t.txn_id) === String(id));
         if(!txn) return;
 
+        const esc = window.Utils.escapeHtml;
         const allCards = window.DB.cards.getAll() || [];
         const card = allCards.find(c => c.card_id === txn.card_id);
-        const cardStr = card ? `${card.cardholder_name} - ${card.bank_name} (*${card.card_last4})` : 'Unmapped';
+        const cardStr = card ? `${card.cardholder_name} — ${card.bank_name} (*${card.card_last4})` : 'Unmapped';
+        const isCredit = txn.txn_type === 'Credit';
+        const stmtLabel = txn.statement_month ? window.Utils.formatMonthYear(txn.statement_month) : `Auto (${window.Utils.formatMonthYear(txn.txn_date)})`;
 
         const html = `
-            <div class="row">
-                <div class="col-md-6 mb-2"><strong>Transaction ID:</strong> ${txn.txn_id}</div>
-                <div class="col-md-6 mb-2"><strong>Date:</strong> ${window.Utils.formatDate(txn.txn_date)}</div>
-                <div class="col-md-6 mb-2"><strong>Statement Month:</strong> <span class="badge bg-light text-primary border">${txn.statement_month ? window.Utils.formatMonthYear(txn.statement_month) : 'Auto (' + window.Utils.formatMonthYear(txn.txn_date) + ')'}</span></div>
-                <div class="col-md-6 mb-2"><strong>Type:</strong> <span class="badge ${txn.txn_type==='Credit'?'bg-success':'bg-danger'}">${txn.txn_type}</span></div>
-                <div class="col-md-6 mb-2"><strong>Amount:</strong> <span class="fw-bold ${txn.txn_type==='Credit'?'text-success':'text-danger'}">${window.Utils.formatCurrency(txn.amount)}</span></div>
-                <div class="col-md-6 mb-2"><strong>Ledger Name:</strong> ${txn.zoho_ledger}</div>
-                <div class="col-md-12 mb-2"><strong>Card:</strong> ${cardStr}</div>
-                <div class="col-md-6 mb-2"><strong>Category:</strong> ${txn.category || ''}</div>
-                <div class="col-md-6 mb-2"><strong>Import Batch ID:</strong> ${txn.import_batch_id || ''}</div>
-                <div class="col-md-6 mb-2"><strong>Status:</strong> ${txn.status}</div>
-                <div class="col-md-12 mb-2 mt-3"><strong>Description/Narration:</strong><br><p class="bg-light p-2 border rounded">${window.Utils.escapeHtml(txn.description || 'No description')}</p></div>
+            <div class="vc-modal-wrap">
+                <div class="txn-modal-hero ${isCredit ? 'is-credit' : 'is-debit'}">
+                    <div class="cc-card-top">
+                        <span class="vivid-pill ${isCredit ? 'pill-status-active' : 'pill-status-blocked'}">
+                            <span class="pill-dot"></span>${esc(txn.txn_type || 'Debit')}
+                        </span>
+                        <span class="cc-cat-tag">TXN #${esc(String(txn.txn_id || ''))}</span>
+                    </div>
+                    <div class="txn-hero-amt">${isCredit ? '+' : '−'}${window.Utils.formatCurrency(txn.amount)}</div>
+                    <div class="txn-hero-meta">
+                        <span><i class="far fa-calendar-alt"></i> ${window.Utils.formatDate(txn.txn_date)}</span>
+                        <span>&bull;</span>
+                        <span><i class="fas fa-calendar-check"></i> ${esc(stmtLabel)}</span>
+                    </div>
+                </div>
+
+                <div class="vc-bento-grid">
+                    <div class="vc-bento-box">
+                        <div class="vc-bento-title"><i class="fas fa-credit-card"></i> Card &amp; Ledger</div>
+                        <div class="vc-detail-list">
+                            <div class="vc-detail-row">
+                                <span>Zoho Ledger</span>
+                                <strong class="vc-ledger-chip">${esc(txn.zoho_ledger || 'Unmapped')}</strong>
+                            </div>
+                            <div class="vc-detail-row">
+                                <span>Mapped Card</span>
+                                <strong>${esc(cardStr)}</strong>
+                            </div>
+                            <div class="vc-detail-row">
+                                <span>Category</span>
+                                <strong>${esc(txn.category || 'Uncategorized')}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vc-bento-box">
+                        <div class="vc-bento-title"><i class="fas fa-info-circle"></i> Audit &amp; Batch</div>
+                        <div class="vc-detail-list">
+                            <div class="vc-detail-row">
+                                <span>Import Batch</span>
+                                <strong>${esc(txn.import_batch_id || 'Manual / Direct')}</strong>
+                            </div>
+                            <div class="vc-detail-row">
+                                <span>Status</span>
+                                <strong>${esc(txn.status || 'Imported')}</strong>
+                            </div>
+                            <div class="vc-detail-row vc-detail-col">
+                                <span>Description / Narration</span>
+                                <div class="vc-addr-box">${esc(txn.description || 'No description recorded')}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="vc-modal-footer" style="justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="window.App?.closeModal();" style="border-radius: 10px;">
+                        Close
+                    </button>
+                </div>
             </div>
         `;
-        if(window.App && window.App.showModal) window.App.showModal("Transaction Details", html);
+        if(window.App && window.App.showModal) window.App.showModal("Transaction Receipt", html);
     },
 
     exportExcel: function() {

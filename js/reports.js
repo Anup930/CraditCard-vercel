@@ -1675,6 +1675,11 @@ window.Reports = {
                 }
                 if (!window._chartInstances) window._chartInstances = {};
 
+                const isDark = document.documentElement.dataset.theme === 'dark';
+                const rTextColor = isDark ? '#e2e8f0' : '#475569';
+                const rGridColor = isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(15, 23, 42, 0.08)';
+                const rLineColor = isDark ? '#38bdf8' : '#0f172a';
+
                 window._chartInstances['chart_due_aging'] = new Chart(canvas, {
                     type: 'bar',
                     data: {
@@ -1701,9 +1706,9 @@ window.Reports = {
                                 type: 'line',
                                 label: 'Statement Count',
                                 data: chartCounts,
-                                borderColor: '#0f172a',
-                                backgroundColor: '#0f172a',
-                                pointBackgroundColor: '#0f172a',
+                                borderColor: rLineColor,
+                                backgroundColor: rLineColor,
+                                pointBackgroundColor: rLineColor,
                                 pointRadius: 5,
                                 borderWidth: 2.5,
                                 tension: 0.3,
@@ -1721,8 +1726,10 @@ window.Reports = {
                                 type: 'linear',
                                 display: true,
                                 position: 'left',
-                                title: { display: true, text: 'Total Due (₹)', font: { weight: 'bold', size: 11 } },
+                                grid: { color: rGridColor },
+                                title: { display: true, text: 'Total Due (₹)', color: rTextColor, font: { weight: 'bold', size: 11 } },
                                 ticks: {
+                                    color: rTextColor,
                                     callback: function(v) { return window.Utils.formatCurrency(v); }
                                 }
                             },
@@ -1730,14 +1737,14 @@ window.Reports = {
                                 type: 'linear',
                                 display: true,
                                 position: 'right',
-                                title: { display: true, text: 'Statements', font: { weight: 'bold', size: 11 } },
+                                title: { display: true, text: 'Statements', color: rTextColor, font: { weight: 'bold', size: 11 } },
                                 grid: { drawOnChartArea: false },
-                                ticks: { stepSize: 1, precision: 0 }
+                                ticks: { color: rTextColor, stepSize: 1, precision: 0 }
                             },
-                            x: { grid: { display: false } }
+                            x: { grid: { display: false }, ticks: { color: rTextColor } }
                         },
                         plugins: {
-                            legend: { position: 'top', labels: { boxWidth: 14, font: { weight: '600' } } },
+                            legend: { position: 'top', labels: { color: rTextColor, boxWidth: 14, font: { weight: '600' } } },
                             tooltip: {
                                 callbacks: {
                                     label: function(ctx) {
@@ -1767,6 +1774,11 @@ window.Reports = {
         
         const ctx = document.getElementById(canvasId);
         if(!ctx) return;
+
+        const isDark = document.documentElement.dataset.theme === 'dark';
+        const textColor = isDark ? '#e2e8f0' : '#475569';
+        const gridColor = isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(15, 23, 42, 0.08)';
+        const isPie = type === 'pie' || type === 'doughnut';
         
         window._chartInstances[canvasId] = new Chart(ctx, {
             type: type,
@@ -1780,15 +1792,20 @@ window.Reports = {
                         'rgba(114, 9, 183, 0.8)', 'rgba(58, 12, 163, 0.8)', 'rgba(72, 149, 239, 0.8)',
                         'rgba(255, 159, 28, 0.8)', 'rgba(46, 196, 182, 0.8)', 'rgba(231, 29, 54, 0.8)'
                     ],
-                    borderWidth: 1
+                    borderWidth: isPie ? 2 : 1,
+                    borderColor: isPie ? (isDark ? '#0f172a' : '#ffffff') : 'transparent'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: type === 'pie' || type === 'doughnut' ? 'right' : 'top' }
-                }
+                    legend: { position: isPie ? 'right' : 'top', labels: { color: textColor } }
+                },
+                scales: !isPie ? {
+                    y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor } },
+                    x: { grid: { display: false }, ticks: { color: textColor } }
+                } : {}
             }
         });
     },
@@ -1802,6 +1819,11 @@ window.Reports = {
         
         const ctx = document.getElementById(canvasId);
         if(!ctx) return;
+
+        const isDark = document.documentElement.dataset.theme === 'dark';
+        const textColor = isDark ? '#e2e8f0' : '#475569';
+        const gridColor = isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(15, 23, 42, 0.08)';
+        const isPie = type === 'pie' || type === 'doughnut';
         
         window._chartInstances[canvasId] = new Chart(ctx, {
             type: type,
@@ -1809,9 +1831,10 @@ window.Reports = {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'top' } },
-                scales: type !== 'pie' && type !== 'doughnut' ? {
-                    y: { beginAtZero: true }
+                plugins: { legend: { position: 'top', labels: { color: textColor } } },
+                scales: !isPie ? {
+                    y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor } },
+                    x: { grid: { display: false }, ticks: { color: textColor } }
                 } : {}
             }
         });
@@ -1932,17 +1955,17 @@ exportCurrentReport: function() {
 
         let rowsHtml = '';
         paged.forEach((h, idx) => {
-            const bgColor = idx % 2 === 0 ? '#fff' : '#f9fafb';
+            const rowCls = idx % 2 === 0 ? 'hygiene-row-even' : 'hygiene-row-odd';
             const missingBar = h.total_missing > 0
                 ? `<span style="display:inline-block;padding:3px 10px;border-radius:20px;background:#fee2e2;color:#ef4444;font-size:12px;font-weight:700;">${h.total_missing}</span>`
                 : '<span style="display:inline-block;padding:3px 10px;border-radius:20px;background:#d1fae5;color:#10b981;font-size:12px;font-weight:700;">0</span>';
             
             rowsHtml += `
-            <tr style="background:${bgColor};cursor:pointer;" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='${bgColor}'" onclick="Reports.hygieneEditCard('${h.card_id}')" title="Click to edit this card">
-                <td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-weight:600;color:#1a1a2e;"><i class="fas fa-edit" style="color:#667eea;margin-right:6px;font-size:11px;opacity:0.6;"></i>${h.cardholder_name}</td>
-                <td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#495057;">${h.primary_cardholder}</td>
-                <td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;"><span style="padding:3px 10px;border-radius:6px;background:#f0f0f5;font-size:12px;font-weight:600;color:#495057;">${h.bank_name}</span></td>
-                <td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-family:monospace;color:#6c757d;">*${h.card_last4}</td>
+            <tr class="hygiene-table-row ${rowCls}" onclick="Reports.hygieneEditCard('${h.card_id}')" title="Click to edit this card">
+                <td style="padding:10px 14px;border-bottom:1px solid var(--border-light);font-weight:600;color:var(--text-primary);"><i class="fas fa-edit" style="color:#667eea;margin-right:6px;font-size:11px;opacity:0.7;"></i>${h.cardholder_name}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--border-light);color:var(--text-secondary);">${h.primary_cardholder}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--border-light);"><span class="hygiene-bank-pill">${h.bank_name}</span></td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--border-light);font-family:monospace;color:var(--text-secondary);">*${h.card_last4}</td>
                 <td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:center;">${getIco(h.missing_name)}</td>
                 <td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:center;">${getIco(h.missing_address)}</td>
                 <td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:center;">${getIco(h.missing_phone)}</td>

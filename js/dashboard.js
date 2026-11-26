@@ -611,6 +611,166 @@ window.Dashboard = {
 
         wrapper.appendChild(bottomGrid);
 
+        // ═════════════════════════════════════════════════════════════════
+        // LIVE PORTFOLIO INTELLIGENCE STRIP (Utilization, Recon & Hygiene)
+        // ═════════════════════════════════════════════════════════════════
+        const topUtilCards = [...filteredCards].map(c => {
+            const m = window.DB.cards.getCardLimitMetrics ? window.DB.cards.getCardLimitMetrics(c.card_id) : { used: 0 };
+            const lim = window.Utils.parseNum(c.credit_limit) || 0;
+            const pct = lim > 0 ? Math.min(100, Math.round((m.used / lim) * 100)) : 0;
+            return { card: c, used: m.used || 0, limit: lim, pct };
+        }).sort((a, b) => b.pct - a.pct).slice(0, 5);
+
+        const missingFieldsCount = filteredCards.reduce((acc, c) => {
+            let m = 0;
+            if (!c.credit_limit) m++;
+            if (!c.statement_date) m++;
+            if (!c.due_date) m++;
+            if (!c.zoho_ledger_name) m++;
+            return acc + m;
+        }, 0);
+        const totalExpectedFields = Math.max(1, filteredCards.length * 4);
+        const hygieneScore = Math.max(0, Math.round(((totalExpectedFields - missingFieldsCount) / totalExpectedFields) * 100));
+
+        const intelGrid = document.createElement('div');
+        intelGrid.className = 'dash-intel-grid mt-4 mb-4';
+        intelGrid.innerHTML = `
+            <div class="dash-intel-card">
+                <div class="dash-intel-head">
+                    <h5><i class="fas fa-fire text-danger"></i> Top 5 Cards by Utilization</h5>
+                    <button type="button" class="dash-mini-link" onclick="window.Dashboard.openInlineReport('limit_used', 'Total Limit vs Used Limit')">Full Report &rarr;</button>
+                </div>
+                <div class="dash-util-list">
+                    ${topUtilCards.length ? topUtilCards.map(item => {
+                        const barColor = item.pct >= 70 ? '#ef4444' : (item.pct >= 40 ? '#f59e0b' : '#10b981');
+                        return `
+                        <div class="dash-util-row">
+                            <div class="dash-util-meta">
+                                <strong>${window.Utils.escapeHtml(item.card.cardholder_name || '')} <small class="text-muted">(*${window.Utils.escapeHtml(item.card.card_last4 || '')})</small></strong>
+                                <span style="color:${barColor};font-weight:800;">${item.pct}%</span>
+                            </div>
+                            <div class="dash-progress-track">
+                                <div class="dash-progress-fill" style="width:${item.pct}%;background:${barColor};"></div>
+                            </div>
+                        </div>`;
+                    }).join('') : '<div class="text-muted small">No card limit data available.</div>'}
+                </div>
+            </div>
+
+            <div class="dash-intel-card">
+                <div class="dash-intel-head">
+                    <h5><i class="fas fa-sync-alt text-primary"></i> Zoho vs. Statement Reconciliation</h5>
+                    <button type="button" class="dash-mini-link" onclick="window.Dashboard.openInlineReport('reconciliation', 'Zoho vs Statement Reconciliation')">Inspect &rarr;</button>
+                </div>
+                <div class="dash-score-hero">
+                    <div class="dash-score-ring" style="--score-pct:${reconRate}%;--score-color:${reconRate >= 80 ? '#10b981' : '#f59e0b'};">
+                        <span>${reconRate}%</span>
+                    </div>
+                    <div class="dash-score-meta">
+                        <div class="dash-score-line"><span class="dot-ok"></span> Matched Cycles: <strong>${reconMatched}</strong></div>
+                        <div class="dash-score-line"><span class="dot-warn"></span> Discrepancies: <strong>${reconDisc}</strong></div>
+                        <div class="dash-score-line"><span class="dot-info"></span> Total Checked: <strong>${totalReconCycles}</strong></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dash-intel-card">
+                <div class="dash-intel-head">
+                    <h5><i class="fas fa-broom text-success"></i> Portfolio Data Hygiene Score</h5>
+                    <button type="button" class="dash-mini-link" onclick="window.Dashboard.openInlineReport('data_hygiene', 'Data Hygiene Report')">Fix Fields &rarr;</button>
+                </div>
+                <div class="dash-score-hero">
+                    <div class="dash-score-ring" style="--score-pct:${hygieneScore}%;--score-color:${hygieneScore >= 85 ? '#10b981' : '#6366f1'};">
+                        <span>${hygieneScore}%</span>
+                    </div>
+                    <div class="dash-score-meta">
+                        <div class="dash-score-line"><span class="dot-ok"></span> Complete Fields: <strong>${totalExpectedFields - missingFieldsCount}</strong></div>
+                        <div class="dash-score-line"><span class="dot-warn"></span> Missing Mandatory: <strong>${missingFieldsCount}</strong></div>
+                        <div class="dash-score-line"><span class="dot-info"></span> Unbilled Queue: <strong>${(window.DB.unbilled.getAll() || []).filter(u => (u.status || 'Unbilled') === 'Unbilled').length}</strong></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        wrapper.appendChild(intelGrid);
+
+        // ═════════════════════════════════════════════════════════════════
+        // ALL 16 EXECUTIVE REPORTS COMMAND CENTER (EMBEDDED IN DASHBOARD)
+        // ═════════════════════════════════════════════════════════════════
+        const allReportsList = [
+            { id: 'reconciliation', title: 'Zoho vs Statement Recon', icon: 'fa-exchange-alt', grad: 'linear-gradient(135deg,#4361ee,#3a0ca3)', cat: 'Reconciliation' },
+            { id: 'unbilled_report', title: 'Unbilled Transactions', icon: 'fa-receipt', grad: 'linear-gradient(135deg,#f97316,#ea580c)', cat: 'Spends' },
+            { id: 'expense_description', title: 'Expense Breakdown', icon: 'fa-chart-pie', grad: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', cat: 'Analytics' },
+            { id: 'sole_owner', title: 'Sole Owner Position', icon: 'fa-user-tie', grad: 'linear-gradient(135deg,#0284c7,#0369a1)', cat: 'Ownership' },
+            { id: 'kpi_report', title: 'Dashboard KPI Report', icon: 'fa-tachometer-alt', grad: 'linear-gradient(135deg,#2563eb,#1d4ed8)', cat: 'Executive' },
+            { id: 'limit_used', title: 'Limit vs Used Limit', icon: 'fa-balance-scale', grad: 'linear-gradient(135deg,#059669,#047857)', cat: 'Credit Risk' },
+            { id: 'fee_waiver', title: 'Fee Waiver Progress', icon: 'fa-gift', grad: 'linear-gradient(135deg,#db2777,#be185d)', cat: 'Benefits' },
+            { id: 'data_hygiene', title: 'Data Hygiene Audit', icon: 'fa-broom', grad: 'linear-gradient(135deg,#0d9488,#0f766e)', cat: 'Governance' },
+            { id: 'card_txn', title: 'Card-wise Transactions', icon: 'fa-credit-card', grad: 'linear-gradient(135deg,#4f46e5,#4338ca)', cat: 'Ledgers' },
+            { id: 'cardholder_txn', title: 'Cardholder-wise Spend', icon: 'fa-users', grad: 'linear-gradient(135deg,#7c3aed,#5b21b6)', cat: 'Spends' },
+            { id: 'bank_wise', title: 'Bank-wise Exposure', icon: 'fa-university', grad: 'linear-gradient(135deg,#0891b2,#0e7490)', cat: 'Banks' },
+            { id: 'monthly_stmt', title: 'Monthly Statement Summary', icon: 'fa-calendar-alt', grad: 'linear-gradient(135deg,#1d4ed8,#1e40af)', cat: 'Billing' },
+            { id: 'payment_out', title: 'Payment & Outstanding', icon: 'fa-money-check-alt', grad: 'linear-gradient(135deg,#10b981,#059669)', cat: 'Settlements' },
+            { id: 'payment_due_aging', title: 'Payment Due Aging', icon: 'fa-hourglass-half', grad: 'linear-gradient(135deg,#e11d48,#be123c)', cat: 'Liquidity' },
+            { id: 'import_history', title: 'Zoho Import History', icon: 'fa-file-import', grad: 'linear-gradient(135deg,#6366f1,#4f46e5)', cat: 'Audits' },
+            { id: 'unmapped_ledger', title: 'Unmapped Ledger Alert', icon: 'fa-exclamation-circle', grad: 'linear-gradient(135deg,#dc2626,#b91c1c)', cat: 'Exceptions' }
+        ];
+
+        const reportsHub = document.createElement('section');
+        reportsHub.className = 'dash-reports-hub';
+        reportsHub.innerHTML = `
+            <div class="dash-reports-head">
+                <div>
+                    <div class="dash-reports-eyebrow"><i class="fas fa-layer-group"></i> UNIFIED EXECUTIVE REPORTS DECK</div>
+                    <h3>All 16 Live Reports &amp; Instant Analytics</h3>
+                    <p>Click any report below to inspect live data right here on the Dashboard, or export full multi-sheet decks.</p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm" onclick="window.Reports?.showExcelExportModal()" style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;border-radius:10px;font-weight:700;padding:8px 14px;">
+                        <i class="fas fa-file-excel"></i> Multi-Sheet Excel
+                    </button>
+                    <button type="button" class="btn btn-sm" onclick="window.Reports?.showPptExportModal()" style="background:linear-gradient(135deg,#4361ee,#7209b7);color:#fff;border:none;border-radius:10px;font-weight:700;padding:8px 14px;">
+                        <i class="fas fa-file-powerpoint"></i> Executive PPT
+                    </button>
+                    <button type="button" class="btn btn-sm" onclick="window.App?.navigate('downlodedash')" style="background:#0f172a;color:#fff;border:none;border-radius:10px;font-weight:700;padding:8px 14px;">
+                        <i class="fas fa-file-pdf"></i> PDF Studio
+                    </button>
+                </div>
+            </div>
+
+            <div class="dash-reports-grid">
+                ${allReportsList.map((r, idx) => `
+                    <button type="button" class="dash-report-tile" data-report-id="${r.id}" onclick="window.Dashboard.openInlineReport('${r.id}', '${r.title}')" style="animation-delay:${Math.min(idx * 20, 260)}ms;">
+                        <div class="dash-rt-icon" style="background:${r.grad};"><i class="fas ${r.icon}"></i></div>
+                        <div class="dash-rt-body">
+                            <span class="dash-rt-cat">${r.cat}</span>
+                            <strong class="dash-rt-title">${r.title}</strong>
+                        </div>
+                        <i class="fas fa-chevron-right dash-rt-arrow"></i>
+                    </button>
+                `).join('')}
+            </div>
+
+            <!-- Inline Report Preview Panel -->
+            <div id="dash-inline-report-panel" class="dash-inline-panel hidden">
+                <div class="dash-inline-head">
+                    <div>
+                        <span class="vivid-pill pill-cat-primary">LIVE REPORT VIEWER</span>
+                        <h4 id="dash-inline-report-title" class="mb-0 mt-1" style="font-weight:800;color:#0f172a;">Report</h4>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn btn-sm btn-success" onclick="window.Reports?.exportCurrentReport()" style="border-radius:9px;font-weight:700;">
+                            <i class="fas fa-file-excel"></i> Export This Report
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="window.Dashboard.closeInlineReport()" style="border-radius:9px;font-weight:700;">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div id="dash-inline-report-body" class="dash-inline-body"></div>
+            </div>
+        `;
+        wrapper.appendChild(reportsHub);
+
         container.appendChild(wrapper);
 
         // ═════════════════════════════════════════════════════════════════
@@ -643,6 +803,38 @@ window.Dashboard = {
 
         // Render charts after DOM insertion
         this.renderCharts(filteredCards, filteredTxns, filteredStmts);
+    },
+
+    openInlineReport: function(reportId, title) {
+        const panel = document.getElementById('dash-inline-report-panel');
+        const titleEl = document.getElementById('dash-inline-report-title');
+        const bodyEl = document.getElementById('dash-inline-report-body');
+        if (!panel || !bodyEl) return;
+
+        document.querySelectorAll('.dash-report-tile').forEach(t => {
+            t.classList.toggle('active', t.dataset.reportId === reportId);
+        });
+
+        panel.classList.remove('hidden');
+        if (titleEl) titleEl.textContent = title || reportId;
+        bodyEl.innerHTML = `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Generating live report...</div>`;
+
+        setTimeout(() => {
+            if (window.Reports && typeof window.Reports.generateReportData === 'function') {
+                window.Reports.currentReportId = reportId;
+                window.Reports.currentReportTitle = title;
+                window.Reports.generateReportData(reportId, bodyEl);
+            } else {
+                bodyEl.innerHTML = `<div class="text-danger">Reports module not loaded.</div>`;
+            }
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 60);
+    },
+
+    closeInlineReport: function() {
+        const panel = document.getElementById('dash-inline-report-panel');
+        if (panel) panel.classList.add('hidden');
+        document.querySelectorAll('.dash-report-tile').forEach(t => t.classList.remove('active'));
     },
 
     getPaymentDueAgingBuckets: function(stmts, cards) {
@@ -780,6 +972,12 @@ window.Dashboard = {
         this.charts.forEach(c => c.destroy());
         this.charts = [];
 
+        const isDark = document.documentElement.dataset.theme === 'dark';
+        const chartTextColor = isDark ? '#e2e8f0' : '#475569';
+        const chartGridColor = isDark ? 'rgba(148, 163, 184, 0.16)' : '#f1f5f9';
+        const chartLineColor = isDark ? '#38bdf8' : '#0f172a';
+        const chartSliceBorder = isDark ? '#0f172a' : '#ffffff';
+
         // 1. Spending by Bank (Doughnut Chart)
         const bankCanvas = document.getElementById('bankChart');
         if (bankCanvas && window.Chart) {
@@ -805,14 +1003,14 @@ window.Dashboard = {
                         data: data.length > 0 ? data : [1],
                         backgroundColor: data.length > 0 ? palette.slice(0, labels.length) : ['#e2e8f0'],
                         borderWidth: 2,
-                        borderColor: '#ffffff'
+                        borderColor: chartSliceBorder
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11, family: 'Inter, Arial' } } },
+                        legend: { position: 'right', labels: { color: chartTextColor, boxWidth: 12, font: { size: 11, family: 'Inter, Arial' } } },
                         tooltip: {
                             callbacks: {
                                 label: (ctx) => ` ${ctx.label}: ${window.Utils.formatCurrency(ctx.raw)}`
@@ -863,13 +1061,15 @@ window.Dashboard = {
                     scales: {
                         y: {
                             beginAtZero: true,
-                            grid: { color: '#f1f5f9' },
+                            grid: { color: chartGridColor },
                             ticks: {
+                                color: chartTextColor,
                                 callback: (val) => window.Utils.formatCurrency(val).replace('.00', '')
                             }
                         },
                         x: {
-                            grid: { display: false }
+                            grid: { display: false },
+                            ticks: { color: chartTextColor }
                         }
                     },
                     plugins: {
@@ -931,12 +1131,12 @@ window.Dashboard = {
                             type: 'line',
                             label: 'Statements Count',
                             data: horizonCounts,
-                            borderColor: '#0f172a',
-                            backgroundColor: '#0f172a',
+                            borderColor: chartLineColor,
+                            backgroundColor: chartLineColor,
                             borderWidth: 2,
                             pointRadius: 5,
-                            pointBackgroundColor: '#ffffff',
-                            pointBorderColor: '#0f172a',
+                            pointBackgroundColor: chartSliceBorder,
+                            pointBorderColor: chartLineColor,
                             pointBorderWidth: 2,
                             tension: 0.3,
                             yAxisID: 'y1'
@@ -956,8 +1156,9 @@ window.Dashboard = {
                             display: true,
                             position: 'left',
                             beginAtZero: true,
-                            grid: { color: '#f1f5f9' },
+                            grid: { color: chartGridColor },
                             ticks: {
+                                color: chartTextColor,
                                 callback: (val) => window.Utils.formatCurrency(val).replace('.00', '')
                             }
                         },
@@ -968,18 +1169,20 @@ window.Dashboard = {
                             beginAtZero: true,
                             grid: { drawOnChartArea: false },
                             ticks: {
+                                color: chartTextColor,
                                 stepSize: 1,
                                 precision: 0
                             }
                         },
                         x: {
-                            grid: { display: false }
+                            grid: { display: false },
+                            ticks: { color: chartTextColor }
                         }
                     },
                     plugins: {
                         legend: {
                             position: 'top',
-                            labels: { boxWidth: 14, font: { size: 11, family: 'Inter, Arial', weight: '600' } }
+                            labels: { color: chartTextColor, boxWidth: 14, font: { size: 11, family: 'Inter, Arial', weight: '600' } }
                         },
                         tooltip: {
                             callbacks: {

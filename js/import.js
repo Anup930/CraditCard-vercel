@@ -1,6 +1,8 @@
 window.Import = {
     currentStep: 1,
     fileData: null,
+    fileHeaders: [],
+    uploadedFile: null,
     mappedData: null,
     validRecords: [],
     errorRecords: [],
@@ -9,148 +11,267 @@ window.Import = {
         this.container = container;
         this.currentStep = 1;
         this.fileData = null;
+        this.fileHeaders = [];
+        this.uploadedFile = null;
         this.mappedData = null;
-        
+
+        const batches = window.DB.importBatches.getAll() || [];
+        const totalImported = batches.reduce((s, b) => s + (parseInt(b.valid_records ?? b.total_records ?? b.record_count ?? 0) || 0), 0);
+        const mappedCardsCount = (window.DB.cards.getAll() || []).filter(c => c.zoho_ledger_name).length;
+
         this.container.innerHTML = `
-            <div class="page-header mb-4">
-                <h2 class="page-title">Import Data</h2>
-                <div class="page-subtitle text-muted">Import transactions from Excel/CSV</div>
-            </div>
-            
-            <div class="wizard-steps d-flex justify-content-between mb-4 card p-3 flex-row">
-                <div class="wizard-step active" id="step1-tab"><span class="step-num bg-primary text-white rounded-circle px-2 py-1 me-2">1</span><span class="step-label">Upload</span></div>
-                <div class="wizard-step text-muted" id="step2-tab"><span class="step-num bg-secondary text-white rounded-circle px-2 py-1 me-2">2</span><span class="step-label">Map & Preview</span></div>
-                <div class="wizard-step text-muted" id="step3-tab"><span class="step-num bg-secondary text-white rounded-circle px-2 py-1 me-2">3</span><span class="step-label">Validate</span></div>
-                <div class="wizard-step text-muted" id="step4-tab"><span class="step-num bg-secondary text-white rounded-circle px-2 py-1 me-2">4</span><span class="step-label">Import</span></div>
+            <div class="zi-header-banner mb-4">
+                <div>
+                    <div class="zi-eyebrow"><i class="fas fa-bolt"></i> AUTOMATED LEDGER PIPELINE</div>
+                    <h2 class="zi-title">Zoho Import Studio</h2>
+                    <p class="zi-subtitle">Upload, auto-map, validate &amp; reconcile Excel/CSV statements in seconds</p>
+                </div>
+                <div class="zi-stat-pills">
+                    <div class="zi-stat-pill">
+                        <span class="zi-stat-num">${batches.length}</span>
+                        <span class="zi-stat-lbl">Batches</span>
+                    </div>
+                    <div class="zi-stat-pill">
+                        <span class="zi-stat-num">${totalImported.toLocaleString('en-IN')}</span>
+                        <span class="zi-stat-lbl">Txns Imported</span>
+                    </div>
+                    <div class="zi-stat-pill">
+                        <span class="zi-stat-num">${mappedCardsCount}</span>
+                        <span class="zi-stat-lbl">Mapped Cards</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="card p-4 mb-4" id="wizard-content"></div>
+            <div class="zi-stepper card mb-4">
+                <div class="zi-step active" id="step1-tab">
+                    <span class="zi-step-num">1</span>
+                    <div class="zi-step-meta">
+                        <span class="zi-step-title">Upload File</span>
+                        <span class="zi-step-sub">XLSX, XLS, CSV</span>
+                    </div>
+                </div>
+                <div class="zi-step-line"></div>
+                <div class="zi-step" id="step2-tab">
+                    <span class="zi-step-num">2</span>
+                    <div class="zi-step-meta">
+                        <span class="zi-step-title">Map &amp; Preview</span>
+                        <span class="zi-step-sub">Auto-detect columns</span>
+                    </div>
+                </div>
+                <div class="zi-step-line"></div>
+                <div class="zi-step" id="step3-tab">
+                    <span class="zi-step-num">3</span>
+                    <div class="zi-step-meta">
+                        <span class="zi-step-title">Validate</span>
+                        <span class="zi-step-sub">Ledger &amp; date check</span>
+                    </div>
+                </div>
+                <div class="zi-step-line"></div>
+                <div class="zi-step" id="step4-tab">
+                    <span class="zi-step-num">4</span>
+                    <div class="zi-step-meta">
+                        <span class="zi-step-title">Import</span>
+                        <span class="zi-step-sub">Commit to DB</span>
+                    </div>
+                </div>
+            </div>
 
-            <div class="card p-4 mt-4">
-                <h3 class="card-title mb-3">Import History</h3>
+            <div class="card zi-wizard-card mb-4" id="wizard-content"></div>
+
+            <div class="data-table-wrapper card mt-4">
+                <div class="zi-history-header">
+                    <div>
+                        <h3 class="zi-history-title"><i class="fas fa-history"></i> Import History</h3>
+                        <span class="zi-history-sub">Audit trail of all Zoho ledger batches</span>
+                    </div>
+                    <span class="vivid-pill pill-cat-primary">${batches.length} Batches</span>
+                </div>
                 <div id="import-history"></div>
             </div>
         `;
-        
+
         this.renderStep();
         this.renderHistory();
     },
 
     renderStep: function() {
         const content = document.getElementById('wizard-content');
-        
-        // Update Tabs
+
+        // Update Stepper Tabs
         [1, 2, 3, 4].forEach(i => {
             const tab = document.getElementById(`step${i}-tab`);
-            if(i < this.currentStep) {
-                tab.className = 'wizard-step completed text-success fw-bold';
-                tab.querySelector('.step-num').className = 'step-num bg-success text-white rounded-circle px-2 py-1 me-2';
-            } else if(i === this.currentStep) {
-                tab.className = 'wizard-step active fw-bold';
-                tab.querySelector('.step-num').className = 'step-num bg-primary text-white rounded-circle px-2 py-1 me-2';
+            if (!tab) return;
+            tab.classList.remove('active', 'completed');
+            const numEl = tab.querySelector('.zi-step-num');
+            if (i < this.currentStep) {
+                tab.classList.add('completed');
+                if (numEl) numEl.innerHTML = '<i class="fas fa-check"></i>';
+            } else if (i === this.currentStep) {
+                tab.classList.add('active');
+                if (numEl) numEl.textContent = String(i);
             } else {
-                tab.className = 'wizard-step text-muted';
-                tab.querySelector('.step-num').className = 'step-num bg-secondary text-white rounded-circle px-2 py-1 me-2';
+                if (numEl) numEl.textContent = String(i);
             }
         });
 
         if (this.currentStep === 1) {
             content.innerHTML = `
-                <div class="text-center p-5 border border-dashed rounded bg-light" id="drop-zone">
-                    <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
-                    <h4>Drag and drop your file here</h4>
-                    <p class="text-muted">Supports .xlsx, .xls, .csv</p>
-                    <div class="alert alert-info py-2 px-3 d-inline-block small mb-3 text-start" style="max-width:550px;">
-                        <i class="fas fa-info-circle me-1"></i> <strong>Required Columns:</strong> <code>Date</code>, <code>Statement Month (YYYY-MM)</code>, <code>Ledger Name</code>, aur <code>Amount</code>.
+                <div class="zi-dropzone" id="drop-zone">
+                    <div class="zi-upload-orb">
+                        <i class="fas fa-cloud-upload-alt"></i>
                     </div>
-                    <div>
-                        <input type="file" id="file-input" class="d-none" accept=".xlsx, .xls, .csv">
-                        <button class="btn btn-primary mt-1" onclick="document.getElementById('file-input').click()"><i class="fas fa-folder-open me-1"></i> Browse Files</button>
-                        <button class="btn btn-outline-secondary mt-1 ms-2" onclick="window.Import.downloadTemplate()"><i class="fas fa-download me-1"></i> Download Template (.xlsx)</button>
+                    <h3 class="zi-drop-title">Drag &amp; drop your Zoho ledger file here</h3>
+                    <p class="zi-drop-sub">Supports <strong>.xlsx</strong>, <strong>.xls</strong>, and <strong>.csv</strong> spreadsheets</p>
+
+                    <div class="zi-req-box">
+                        <span class="zi-req-label"><i class="fas fa-check-double"></i> Required Columns:</span>
+                        <div class="zi-req-chips">
+                            <span class="zi-chip">Date</span>
+                            <span class="zi-chip">Statement Month (YYYY-MM)</span>
+                            <span class="zi-chip">Ledger Name</span>
+                            <span class="zi-chip">Amount</span>
+                        </div>
+                    </div>
+
+                    <div class="zi-drop-actions">
+                        <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none;">
+                        <button type="button" class="btn btn-primary zi-btn-browse" onclick="document.getElementById('file-input').click()">
+                            <i class="fas fa-folder-open"></i> Browse Files
+                        </button>
+                        <button type="button" class="btn btn-outline zi-btn-template" onclick="window.Import.downloadTemplate()">
+                            <i class="fas fa-file-excel text-success"></i> Download Template (.xlsx)
+                        </button>
                     </div>
                 </div>
             `;
-            
+
             document.getElementById('file-input').addEventListener('change', (e) => this.handleFileUpload(e.target.files[0]));
             const dropZone = document.getElementById('drop-zone');
-            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('bg-white'); });
-            dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('bg-white'); });
-            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('bg-white'); this.handleFileUpload(e.dataTransfer.files[0]); });
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('is-dragover'); });
+            dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('is-dragover'); });
+            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('is-dragover'); this.handleFileUpload(e.dataTransfer.files[0]); });
         }
         else if (this.currentStep === 2) {
             if(!this.fileData || this.fileData.length === 0) return this.prevStep();
-            
+
             const headers = (this.fileHeaders && this.fileHeaders.length > 0) ? this.fileHeaders : Object.keys(this.fileData[0]);
-            
+            const fileName = this.uploadedFile ? window.Utils.escapeHtml(this.uploadedFile.name) : 'Uploaded Sheet';
+
             content.innerHTML = `
-                <h4>Map Columns</h4>
-                <p class="text-muted mb-4">Select which column in your file corresponds to the required fields.</p>
-                
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="form-group mb-3">
-                            <label class="fw-bold">Date Column <span class="text-danger">*</span></label>
-                            <select class="form-select" id="map_date">${this.getOptions(headers, 'date')}</select>
-                        </div>
-                        <div class="form-group mb-3 p-3 bg-light border border-primary rounded">
-                            <label class="fw-bold text-dark">Statement Month Column <span class="text-danger">* (Required)</span></label>
-                            <select class="form-select border-primary fw-bold" id="map_stmt_month">
-                                <option value="">-- Select Statement Month Column from File --</option>
-                                ${this.getOptions(headers, 'statement.*month|stmt.*month|billing.*month|statement_month|statemen|statement|month')}
-                            </select>
-                            <div class="form-text text-muted mt-2 small">
-                                <em>File me Statement Month column nahi hai? Niche se poore batch ke liye month select karein:</em>
-                            </div>
-                            <div class="input-group input-group-sm mt-1">
-                                <span class="input-group-text bg-white">Or Fixed Statement Month:</span>
-                                <input type="month" class="form-control" id="fixed_stmt_month" placeholder="YYYY-MM">
-                            </div>
-                        </div>
-                        <div class="form-group mb-3"><label class="fw-bold">Ledger/Account Column <span class="text-danger">*</span></label><select class="form-select" id="map_ledger">${this.getOptions(headers, 'ledger|account|name')}</select></div>
-                        <div class="form-group mb-3"><label>Description/Details</label><select class="form-select" id="map_desc">${this.getOptions(headers, 'desc|detail|narration')}</select></div>
+                <div class="zi-step2-head">
+                    <div>
+                        <h4 class="mb-1" style="font-weight:800;color:#0f172a;">Map Spreadsheet Columns</h4>
+                        <p class="text-muted mb-0" style="font-size:0.85rem;">File: <strong>${fileName}</strong> &bull; ${this.fileData.length} rows detected</p>
                     </div>
-                    <div class="col-md-6">
-                        <div class="form-group mb-3"><label class="fw-bold">Amount Column <span class="text-danger">*</span></label><select class="form-select" id="map_amount">${this.getOptions(headers, 'amount')}</select></div>
-                        <div class="form-group mb-3"><label>Transaction Type (Debit/Credit)</label><select class="form-select" id="map_type"><option value="">-- Auto Detect from Amount --</option>${this.getOptions(headers, 'type|cr/dr')}</select></div>
-                        <div class="form-group mb-3"><label>Debit Column (Alternative)</label><select class="form-select" id="map_debit"><option value="">-- None --</option>${this.getOptions(headers, 'debit|dr')}</select></div>
-                        <div class="form-group mb-3"><label>Credit Column (Alternative)</label><select class="form-select" id="map_credit"><option value="">-- None --</option>${this.getOptions(headers, 'credit|cr')}</select></div>
-                    </div>
-                </div>
-                
-                <h5>Preview (First 5 rows)</h5>
-                <div class="table-responsive mb-4">
-                    <table class="table table-sm table-bordered">
-                        <thead><tr>${headers.map(h => `<th>${window.Utils.escapeHtml(h)}</th>`).join('')}</tr></thead>
-                        <tbody>
-                            ${this.fileData.slice(0, 5).map(row => `<tr>${headers.map(h => `<td>${window.Utils.escapeHtml(String(row[h] || ''))}</td>`).join('')}</tr>`).join('')}
-                        </tbody>
-                    </table>
+                    <span class="vivid-pill pill-status-active"><span class="pill-dot"></span>Auto-Mapper Active</span>
                 </div>
 
-                <div class="d-flex justify-content-between mt-4">
-                    <button class="btn btn-secondary" onclick="window.Import.prevStep()">Back</button>
-                    <button class="btn btn-primary" onclick="window.Import.processMapping()">Next: Validate</button>
+                <div class="zi-map-grid">
+                    <div class="cf-section cf-sec-indigo">
+                        <div class="cf-sec-title"><i class="fas fa-asterisk"></i> Required Core Fields</div>
+                        <div class="cf-field mb-3">
+                            <label for="map_date">Date Column <span class="cf-req">*</span></label>
+                            <select class="form-select" id="map_date">${this.getOptions(headers, 'date')}</select>
+                        </div>
+
+                        <div class="zi-stmt-highlight mb-3">
+                            <label for="map_stmt_month"><i class="fas fa-calendar-alt"></i> Statement Month Column <span class="cf-req">*</span></label>
+                            <select class="form-select" id="map_stmt_month">
+                                <option value="">-- Select Statement Month Column --</option>
+                                ${this.getOptions(headers, 'statement.*month|stmt.*month|billing.*month|statement_month|statemen|statement|month')}
+                            </select>
+                            <div class="zi-stmt-or">
+                                <span>Or set Fixed Month for entire batch:</span>
+                                <input type="month" class="form-control" id="fixed_stmt_month">
+                            </div>
+                        </div>
+
+                        <div class="cf-field mb-3">
+                            <label for="map_ledger">Ledger / Account Column <span class="cf-req">*</span></label>
+                            <select class="form-select" id="map_ledger">${this.getOptions(headers, 'ledger|account|name')}</select>
+                        </div>
+
+                        <div class="cf-field">
+                            <label for="map_amount">Amount Column <span class="cf-req">*</span></label>
+                            <select class="form-select" id="map_amount">${this.getOptions(headers, 'amount')}</select>
+                        </div>
+                    </div>
+
+                    <div class="cf-section cf-sec-purple">
+                        <div class="cf-sec-title"><i class="fas fa-sliders-h"></i> Optional &amp; Split Columns</div>
+                        <div class="cf-field mb-3">
+                            <label for="map_desc">Description / Narration</label>
+                            <select class="form-select" id="map_desc">${this.getOptions(headers, 'desc|detail|narration')}</select>
+                        </div>
+                        <div class="cf-field mb-3">
+                            <label for="map_type">Transaction Type (Debit/Credit)</label>
+                            <select class="form-select" id="map_type"><option value="">-- Auto Detect from Amount --</option>${this.getOptions(headers, 'type|cr/dr')}</select>
+                        </div>
+                        <div class="cf-field mb-3">
+                            <label for="map_debit">Debit Column (Alternative)</label>
+                            <select class="form-select" id="map_debit"><option value="">-- None --</option>${this.getOptions(headers, 'debit|dr')}</select>
+                        </div>
+                        <div class="cf-field">
+                            <label for="map_credit">Credit Column (Alternative)</label>
+                            <select class="form-select" id="map_credit"><option value="">-- None --</option>${this.getOptions(headers, 'credit|cr')}</select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="zi-preview-wrap">
+                    <div class="zi-preview-label"><i class="fas fa-table"></i> Raw Data Preview (First 5 rows)</div>
+                    <div class="master-table-scroll" style="max-height: 240px;">
+                        <table class="data-table master-colorful-table table w-100 mb-0">
+                            <thead><tr>${headers.map(h => `<th>${window.Utils.escapeHtml(h)}</th>`).join('')}</tr></thead>
+                            <tbody>
+                                ${this.fileData.slice(0, 5).map(row => `<tr>${headers.map(h => `<td>${window.Utils.escapeHtml(String(row[h] || ''))}</td>`).join('')}</tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="cf-form-footer" style="margin-top: 18px;">
+                    <button type="button" class="btn btn-secondary" onclick="window.Import.prevStep()" style="border-radius:10px;">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                    <button type="button" class="btn btn-primary cf-submit-btn" onclick="window.Import.processMapping()">
+                        Next: Validate Records <i class="fas fa-arrow-right"></i>
+                    </button>
                 </div>
             `;
         }
         else if (this.currentStep === 3) {
             content.innerHTML = `
-                <h4>Validation Results</h4>
-                <div class="row mb-4 text-center mt-3">
-                    <div class="col-md-4"><div class="card bg-light p-3"><h2 class="text-primary">${this.mappedData.length}</h2><div>Total Records</div></div></div>
-                    <div class="col-md-4"><div class="card bg-light p-3"><h2 class="text-success">${this.validRecords.length}</h2><div>Valid Records</div></div></div>
-                    <div class="col-md-4"><div class="card bg-light p-3"><h2 class="text-danger">${this.errorRecords.length}</h2><div>Errors / Unmapped</div></div></div>
+                <h4 class="mb-3" style="font-weight:800;color:#0f172a;">Validation Results</h4>
+                <div class="zi-val-kpis mb-4">
+                    <div class="zi-val-card val-total">
+                        <div class="zi-val-num">${this.mappedData.length}</div>
+                        <div class="zi-val-lbl">Total Records</div>
+                    </div>
+                    <div class="zi-val-card val-ok">
+                        <div class="zi-val-num">${this.validRecords.length}</div>
+                        <div class="zi-val-lbl">Valid &amp; Ready</div>
+                    </div>
+                    <div class="zi-val-card val-err">
+                        <div class="zi-val-num">${this.errorRecords.length}</div>
+                        <div class="zi-val-lbl">Errors / Unmapped</div>
+                    </div>
                 </div>
-                
+
                 ${this.errorRecords.length > 0 ? `
-                <div class="alert alert-danger">
-                    <strong>Warning:</strong> ${this.errorRecords.length} records have errors (missing required fields or unmapped ledger). They will not be imported.
+                <div class="zi-alert zi-alert-warn mb-3">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span><strong>${this.errorRecords.length} records</strong> have missing fields or unmapped ledgers and will be skipped.</span>
                 </div>
-                ` : '<div class="alert alert-success">All records are valid and ready to import!</div>'}
-                
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                    <table class="table table-sm table-hover">
-                        <thead class="table-light sticky-top">
+                ` : `
+                <div class="zi-alert zi-alert-ok mb-3">
+                    <i class="fas fa-check-circle"></i>
+                    <span>All <strong>${this.validRecords.length} records</strong> passed validation and are ready to import!</span>
+                </div>`}
+
+                <div class="master-table-scroll" style="max-height: 400px;">
+                    <table class="data-table master-colorful-table table w-100 mb-0">
+                        <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Stmt Month</th>
@@ -165,36 +286,46 @@ window.Import = {
                         <tbody>
                             ${this.mappedData.map(row => {
                                 const isValid = row._isValid;
-                                const trClass = isValid ? 'table-success' : 'table-danger';
                                 return `
-                                <tr class="${trClass}">
+                                <tr class="${isValid ? 'row-primary' : 'row-addon'}" style="--row-accent: ${isValid ? '#10b981' : '#ef4444'};">
                                     <td>${window.Utils.formatDate(row.txn_date)}</td>
-                                    <td><span class="badge ${row.statement_month ? 'bg-primary' : 'bg-light text-dark border'}">${row.statement_month ? window.Utils.formatMonthYear(row.statement_month) : 'Auto (Date)'}</span></td>
-                                    <td>${window.Utils.escapeHtml(row.zoho_ledger || '')}</td>
-                                    <td>${row.card_id ? 'Yes' : '<span class="text-danger">No Match</span>'}</td>
+                                    <td><span class="vivid-pill ${row.statement_month ? 'pill-cat-primary' : 'pill-cat-addon'}">${row.statement_month ? window.Utils.formatMonthYear(row.statement_month) : 'Auto (Date)'}</span></td>
+                                    <td><span class="ledger-pill">${window.Utils.escapeHtml(row.zoho_ledger || '')}</span></td>
+                                    <td>${row.card_id ? '<span class="vivid-pill pill-status-active"><span class="pill-dot"></span>Matched</span>' : '<span class="vivid-pill pill-status-blocked"><span class="pill-dot"></span>No Match</span>'}</td>
                                     <td>${window.Utils.escapeHtml(row.description || '')}</td>
-                                    <td>${row.txn_type}</td>
-                                    <td>${window.Utils.formatCurrency(row.amount)}</td>
-                                    <td>${isValid ? 'Valid' : row._errorMsg}</td>
+                                    <td><span class="vivid-pill ${row.txn_type === 'Credit' ? 'pill-status-active' : 'pill-cat-addon'}">${row.txn_type}</span></td>
+                                    <td><strong>${window.Utils.formatCurrency(row.amount)}</strong></td>
+                                    <td>${isValid ? '<span class="vivid-pill pill-status-active">Valid</span>' : `<span class="vivid-pill pill-status-blocked">${window.Utils.escapeHtml(row._errorMsg)}</span>`}</td>
                                 </tr>`;
                             }).join('')}
                         </tbody>
                     </table>
                 </div>
 
-                <div class="d-flex justify-content-between mt-4">
-                    <button class="btn btn-secondary" onclick="window.Import.prevStep()">Back</button>
-                    <button class="btn btn-success" onclick="window.Import.commitImport()" ${this.validRecords.length === 0 ? 'disabled' : ''}>Import ${this.validRecords.length} Valid Records</button>
+                <div class="cf-form-footer" style="margin-top: 18px;">
+                    <button type="button" class="btn btn-secondary" onclick="window.Import.prevStep()" style="border-radius:10px;">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                    <button type="button" class="btn btn-success zi-commit-btn" onclick="window.Import.commitImport()" ${this.validRecords.length === 0 ? 'disabled' : ''}>
+                        <i class="fas fa-cloud-upload-alt"></i> Import ${this.validRecords.length} Valid Records
+                    </button>
                 </div>
             `;
         }
         else if (this.currentStep === 4) {
             content.innerHTML = `
-                <div class="text-center p-5">
-                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                <div class="zi-success-screen">
+                    <div class="zi-success-icon"><i class="fas fa-check"></i></div>
                     <h2>Import Successful!</h2>
-                    <p class="text-muted mt-2">Successfully imported ${this.validRecords.length} transactions.</p>
-                    <button class="btn btn-primary mt-4" onclick="window.Import.render(window.Import.container)">Start New Import</button>
+                    <p>Successfully imported <strong>${this.validRecords.length} transactions</strong> into CCMS &amp; synced to cloud.</p>
+                    <div class="zi-drop-actions">
+                        <button type="button" class="btn btn-primary cf-submit-btn" onclick="window.Import.render(window.Import.container)">
+                            <i class="fas fa-plus"></i> Start New Import
+                        </button>
+                        <button type="button" class="btn btn-outline zi-btn-template" onclick="window.App?.navigate('transactions')">
+                            <i class="fas fa-exchange-alt"></i> View Transactions
+                        </button>
+                    </div>
                 </div>
             `;
             this.renderHistory();
@@ -215,6 +346,7 @@ window.Import = {
 
     handleFileUpload: function(file) {
         if(!file) return;
+        this.uploadedFile = file;
         const reader = new FileReader();
         reader.onload = (e) => {
             const data = new Uint8Array(e.target.result);
@@ -435,10 +567,12 @@ window.Import = {
         }
 
         let html = `
-            <table class="table data-table table-hover">
-                <thead class="table-light">
+            <div class="master-table-scroll" style="max-height: 440px;">
+            <table class="table data-table master-colorful-table w-100 mb-0">
+                <thead>
                     <tr>
                         <th>Batch ID</th>
+                        <th>File Name</th>
                         <th>Import Date</th>
                         <th>Records Added</th>
                         <th>Status</th>
@@ -449,17 +583,20 @@ window.Import = {
 
         batches.forEach(b => {
             const count = b.valid_records !== undefined ? b.valid_records : (b.total_records !== undefined ? b.total_records : (b.record_count !== undefined ? b.record_count : 0));
+            const st = b.status || 'Success';
+            const ok = st.toLowerCase() === 'success';
             html += `
-                <tr>
-                    <td>${b.batch_id}</td>
+                <tr class="row-primary" style="--row-accent: ${ok ? '#10b981' : '#f59e0b'};">
+                    <td><span class="card-num-pill">${window.Utils.escapeHtml(String(b.batch_id || ''))}</span></td>
+                    <td><span class="ledger-pill"><i class="fas fa-file-excel" style="margin-right:5px;"></i>${window.Utils.escapeHtml(b.file_name || 'Zoho_Import.xlsx')}</span></td>
                     <td>${window.Utils.formatDate(b.import_date)}</td>
-                    <td>${count}</td>
-                    <td><span class="badge bg-success">${b.status || 'Success'}</span></td>
+                    <td><span class="sr-pill">${count}</span></td>
+                    <td><span class="vivid-pill ${ok ? 'pill-status-active' : 'pill-status-blocked'}"><span class="pill-dot"></span>${window.Utils.escapeHtml(st)}</span></td>
                 </tr>
             `;
         });
 
-        html += `</tbody></table>`;
+        html += `</tbody></table></div>`;
         historyContainer.innerHTML = html;
     },
 

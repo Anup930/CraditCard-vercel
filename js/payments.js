@@ -1,32 +1,67 @@
 window.Payments = {
     currentTab: 'statements',
+    viewMode: localStorage.getItem('ccms_pay_view') || 'table',
+
+    setViewMode: function(mode) {
+        this.viewMode = mode === 'cards' ? 'cards' : 'table';
+        localStorage.setItem('ccms_pay_view', this.viewMode);
+        document.querySelectorAll('.pay-view-btn').forEach(btn => {
+            const active = btn.dataset.view === this.viewMode;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        this.renderTabContent();
+    },
 
     render: function(container) {
         this.container = container;
-        
+        const stmts = window.DB.statements.getAll() || [];
+        const unbilled = window.DB.unbilled.getAll() || [];
+        const pmts = window.DB.payments.getAll() || [];
+        const outCount = stmts.filter(s => s.payment_status !== 'Paid' && s.closing_outstanding > 0).length;
+
         const html = `
-            <div class="page-header mb-4">
-                <h2 class="page-title">Statements & Payments</h2>
+            <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+                <div>
+                    <h2 class="page-title">Statements &amp; Payments</h2>
+                    <div class="page-subtitle text-muted">Track billing cycles, unbilled swipes, settlements &amp; overdue alerts</div>
+                </div>
+                <div class="view-switcher" role="group" aria-label="Payments view mode">
+                    <button type="button" class="view-switch-btn pay-view-btn ${this.viewMode === 'table' ? 'active' : ''}" data-view="table" aria-pressed="${this.viewMode === 'table'}" onclick="window.Payments.setViewMode('table')">
+                        <i class="fas fa-table"></i> <span>Table View</span>
+                    </button>
+                    <button type="button" class="view-switch-btn pay-view-btn ${this.viewMode === 'cards' ? 'active' : ''}" data-view="cards" aria-pressed="${this.viewMode === 'cards'}" onclick="window.Payments.setViewMode('cards')">
+                        <i class="fas fa-th-large"></i> <span>Card View</span>
+                    </button>
+                </div>
             </div>
-            
-            <div class="tabs mb-4">
-                <div class="tab ${this.currentTab === 'statements' ? 'active' : ''}" onclick="window.Payments.switchTab('statements')">
-                    Statements
-                </div>
-                <div class="tab ${this.currentTab === 'unbilled' ? 'active' : ''}" onclick="window.Payments.switchTab('unbilled')">
-                    Unbilled Spends
-                </div>
-                <div class="tab ${this.currentTab === 'payments' ? 'active' : ''}" onclick="window.Payments.switchTab('payments')">
-                    Payments History
-                </div>
-                <div class="tab ${this.currentTab === 'outstanding' ? 'active' : ''}" onclick="window.Payments.switchTab('outstanding')" style="${this.currentTab === 'outstanding' ? 'color: var(--danger); border-bottom-color: var(--danger);' : ''}">
-                    Outstanding Dues
-                </div>
+
+            <div class="pay-tabs-bar mb-4" role="tablist">
+                <button type="button" role="tab" aria-selected="${this.currentTab === 'statements'}" class="pay-tab-btn ${this.currentTab === 'statements' ? 'active' : ''}" onclick="window.Payments.switchTab('statements')">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    <span>Statements</span>
+                    <span class="pay-tab-count">${stmts.length}</span>
+                </button>
+                <button type="button" role="tab" aria-selected="${this.currentTab === 'unbilled'}" class="pay-tab-btn ${this.currentTab === 'unbilled' ? 'active' : ''}" onclick="window.Payments.switchTab('unbilled')">
+                    <i class="fas fa-receipt"></i>
+                    <span>Unbilled Spends</span>
+                    <span class="pay-tab-count">${unbilled.length}</span>
+                </button>
+                <button type="button" role="tab" aria-selected="${this.currentTab === 'payments'}" class="pay-tab-btn ${this.currentTab === 'payments' ? 'active' : ''}" onclick="window.Payments.switchTab('payments')">
+                    <i class="fas fa-check-double"></i>
+                    <span>Payments History</span>
+                    <span class="pay-tab-count">${pmts.length}</span>
+                </button>
+                <button type="button" role="tab" aria-selected="${this.currentTab === 'outstanding'}" class="pay-tab-btn pay-tab-danger ${this.currentTab === 'outstanding' ? 'active' : ''}" onclick="window.Payments.switchTab('outstanding')">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>Outstanding Dues</span>
+                    <span class="pay-tab-count">${outCount}</span>
+                </button>
             </div>
 
             <div id="payments-content"></div>
         `;
-        
+
         this.container.innerHTML = html;
         this.renderTabContent();
     },
@@ -47,17 +82,93 @@ window.Payments = {
     renderStatements: function(content) {
         const statements = window.DB.statements.getAll() || [];
         statements.sort((a,b) => new Date(b.due_date || 0) - new Date(a.due_date || 0));
-        
+
+        const totalBilled = statements.reduce((sum, s) => sum + (window.Utils.parseNum(s.billed_amount) || 0), 0);
+        const totalPaid = statements.reduce((sum, s) => sum + (window.Utils.parseNum(s.credits_payments) || 0), 0);
+        const totalOut = statements.reduce((sum, s) => sum + (window.Utils.parseNum(s.closing_outstanding) || 0), 0);
+
+        const allCards = window.DB.cards.getAll() || [];
+        const allPmts = window.DB.payments.getAll() || [];
+        const esc = window.Utils.escapeHtml;
+        const getCardStr = (id) => { const c = allCards.find(x => String(x.card_id) === String(id)); return c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unknown'; };
+
         let html = `
-            <div class="card data-table-wrapper table-responsive mb-4">
+            <div class="txn-kpi-grid mb-4">
+                <div class="txn-kpi-card kpi-net-cr">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Total Billed</span><span class="txn-kpi-icon"><i class="fas fa-file-invoice"></i></span></div>
+                    <div class="txn-kpi-val">${window.Utils.formatCurrency(totalBilled)}</div>
+                    <div class="txn-kpi-sub">${statements.length} statements tracked</div>
+                </div>
+                <div class="txn-kpi-card kpi-credit">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Credits &amp; Payments</span><span class="txn-kpi-icon"><i class="fas fa-check-circle"></i></span></div>
+                    <div class="txn-kpi-val">${window.Utils.formatCurrency(totalPaid)}</div>
+                    <div class="txn-kpi-sub">Total settled against bills</div>
+                </div>
+                <div class="txn-kpi-card kpi-debit">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Closing Outstanding</span><span class="txn-kpi-icon"><i class="fas fa-hourglass-half"></i></span></div>
+                    <div class="txn-kpi-val">${window.Utils.formatCurrency(totalOut)}</div>
+                    <div class="txn-kpi-sub">Remaining payable balance</div>
+                </div>
+            </div>
+
+            <div class="card data-table-wrapper mb-4">
                 <div class="table-toolbar">
-                    <h4 class="card-title mb-0">All Statements</h4>
+                    <h4 class="card-title mb-0" style="font-weight:800;">All Statements</h4>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-primary" onclick="window.DataImport.openModal('statements')"><i class="fas fa-file-import"></i> Import</button>
-                        <button class="btn btn-primary" onclick="window.Payments.showStatementModal()"><i class="fas fa-plus"></i> Add Statement</button>
+                        <button class="btn btn-outline" onclick="window.DataImport.openModal('statements')" style="background:#eef2ff;color:#4361ee;border-color:#c7d2fe;border-radius:8px;font-weight:600;"><i class="fas fa-file-import"></i> Import</button>
+                        <button class="btn btn-primary" onclick="window.Payments.showStatementModal()" style="border-radius:8px;font-weight:600;"><i class="fas fa-plus"></i> Add Statement</button>
                     </div>
                 </div>
-                <table class="data-table">
+        `;
+
+        if (this.viewMode === 'cards') {
+            if (statements.length === 0) {
+                html += `<div class="empty-state py-5">No statements recorded.</div>`;
+            } else {
+                html += `<div class="pay-cards-grid">`;
+                statements.forEach((s, i) => {
+                    const hasPayment = allPmts.some(p => String(p.statement_id) === String(s.statement_id));
+                    const st = s.payment_status || 'Pending';
+                    const isPaid = st === 'Paid';
+                    const isOver = st === 'Overdue';
+                    const cardTheme = isPaid ? 'pay-card-emerald' : (isOver ? 'pay-card-rose' : 'pay-card-indigo');
+                    const pillCls = isPaid ? 'pill-status-active' : (isOver ? 'pill-status-blocked' : 'pill-cat-addon');
+
+                    html += `
+                        <article class="pay-card ${cardTheme}" style="animation-delay:${Math.min(i * 25, 240)}ms;">
+                            <div class="pay-card-top">
+                                <span class="vivid-pill pill-cat-primary">${esc(window.Utils.formatMonthYear(s.statement_month))}</span>
+                                <span class="vivid-pill ${pillCls}"><span class="pill-dot"></span>${esc(st)}</span>
+                            </div>
+                            <div class="pay-card-title">${esc(getCardStr(s.card_id))}</div>
+                            <div class="pay-card-due"><i class="far fa-calendar-alt"></i> Due: <strong>${window.Utils.formatDate(s.due_date)}</strong></div>
+
+                            <div class="pay-mini-metrics">
+                                <div><span>Billed</span><strong>${window.Utils.formatCurrency(s.billed_amount)}</strong></div>
+                                <div><span>Paid</span><strong style="color:#059669;">${window.Utils.formatCurrency(s.credits_payments)}</strong></div>
+                                <div><span>Due</span><strong style="color:#e11d48;">${window.Utils.formatCurrency(s.closing_outstanding)}</strong></div>
+                            </div>
+
+                            <div class="pay-card-footer">
+                                <span class="pay-min-due">Min Due: ${window.Utils.formatCurrency(s.minimum_due)}</span>
+                                <div class="master-row-actions">
+                                    <button class="act-btn act-view" title="View Details" onclick="window.Payments.viewStatement('${s.statement_id}')"><i class="fas fa-eye"></i></button>
+                                    <button class="act-btn act-edit" title="Edit Statement" onclick="window.Payments.showStatementModal('${s.statement_id}')"><i class="fas fa-edit"></i></button>
+                                    ${hasPayment
+                                        ? `<button class="btn btn-sm pay-btn-info" onclick="window.Payments.viewStatement('${s.statement_id}')">Details</button>`
+                                        : `<button class="btn btn-sm pay-btn-go" onclick="window.Payments.showPaymentModal('${s.card_id}', '${s.statement_id}')">Pay</button>`
+                                    }
+                                </div>
+                            </div>
+                        </article>
+                    `;
+                });
+                html += `</div>`;
+            }
+        } else {
+            html += `
+                <div class="master-table-scroll" tabindex="0" role="region" aria-label="All Statements Table">
+                <table class="data-table master-colorful-table table w-100 mb-0">
                     <thead>
                         <tr>
                             <th>Card</th>
@@ -65,75 +176,128 @@ window.Payments = {
                             <th class="text-right">Opening</th>
                             <th class="text-right">Billed</th>
                             <th class="text-right">Credits/Pmts</th>
-                            <th class="text-right text-danger">Outstanding</th>
-                            <th class="text-right text-muted">Min Due</th>
+                            <th class="text-right">Outstanding</th>
+                            <th class="text-right">Min Due</th>
                             <th>Due Date</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-        `;
-        
-        const allCards = window.DB.cards.getAll() || [];
-        const getCardStr = (id) => { const c = allCards.find(x => String(x.card_id) === String(id)); return c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unknown'; };
+            `;
 
-        if(statements.length === 0) {
-            html += `<tr><td colspan="10" class="text-center py-4">No statements recorded.</td></tr>`;
-        } else {
-            statements.forEach(s => {
-                let statusBadge = 'bg-secondary';
-                if(s.payment_status === 'Paid') statusBadge = 'bg-success';
-                else if(s.payment_status === 'Overdue') statusBadge = 'bg-danger';
-                else if(s.payment_status === 'Partial') statusBadge = 'bg-warning text-dark';
-                else if(s.payment_status === 'Pending') statusBadge = 'bg-info text-dark';
+            if(statements.length === 0) {
+                html += `<tr><td colspan="10" class="text-center py-4">No statements recorded.</td></tr>`;
+            } else {
+                statements.forEach(s => {
+                    const st = s.payment_status || 'Pending';
+                    let pillCls = 'pill-status-inactive';
+                    let accent = '#6366f1';
+                    if(st === 'Paid') { pillCls = 'pill-status-active'; accent = '#10b981'; }
+                    else if(st === 'Overdue') { pillCls = 'pill-status-blocked'; accent = '#f43f5e'; }
+                    else if(st === 'Partial') { pillCls = 'pill-cat-addon'; accent = '#f59e0b'; }
+                    else if(st === 'Pending') { pillCls = 'pill-cat-addon'; accent = '#3b82f6'; }
 
-                const hasPayment = (window.DB.payments.getAll() || []).some(p => String(p.statement_id) === String(s.statement_id));
+                    const hasPayment = allPmts.some(p => String(p.statement_id) === String(s.statement_id));
 
-                html += `
-                    <tr>
-                        <td>${getCardStr(s.card_id)}</td>
-                        <td>${window.Utils.formatMonthYear(s.statement_month)}</td>
-                        <td class="text-right">${window.Utils.formatCurrency(s.opening_balance)}</td>
-                        <td class="text-right">${window.Utils.formatCurrency(s.billed_amount)}</td>
-                        <td class="text-right text-success">${window.Utils.formatCurrency(s.credits_payments)}</td>
-                        <td class="text-right fw-bold text-danger">${window.Utils.formatCurrency(s.closing_outstanding)}</td>
-                        <td class="text-right text-muted">${window.Utils.formatCurrency(s.minimum_due)}</td>
-                        <td>${window.Utils.formatDate(s.due_date)}</td>
-                        <td><span class="badge ${statusBadge}">${s.payment_status}</span></td>
-                        <td>
-                            <div class="actions" style="align-items: center;">
-                                <button class="btn btn-sm btn-icon text-primary" title="View Details" onclick="window.Payments.viewStatement('${s.statement_id}')"><i class="fas fa-eye"></i></button>
-                                <button class="btn btn-sm btn-icon text-warning" title="Edit Statement" onclick="window.Payments.showStatementModal('${s.statement_id}')"><i class="fas fa-edit"></i></button>
-                                ${hasPayment 
-                                    ? `<button class="btn btn-sm btn-outline-info ms-1" onclick="window.Payments.viewStatement('${s.statement_id}')">Payment Details</button>` 
-                                    : `<button class="btn btn-sm btn-outline-success ms-1" onclick="window.Payments.showPaymentModal('${s.card_id}', '${s.statement_id}')">Pay</button>`
-                                }
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
+                    html += `
+                        <tr class="row-primary" style="--row-accent: ${accent};">
+                            <td><span class="owner-text">${esc(getCardStr(s.card_id))}</span></td>
+                            <td><span class="vivid-pill pill-cat-primary">${esc(window.Utils.formatMonthYear(s.statement_month))}</span></td>
+                            <td class="text-right">${window.Utils.formatCurrency(s.opening_balance)}</td>
+                            <td class="text-right"><strong>${window.Utils.formatCurrency(s.billed_amount)}</strong></td>
+                            <td class="text-right"><span class="txn-amt-pill amt-cr">${window.Utils.formatCurrency(s.credits_payments)}</span></td>
+                            <td class="text-right"><span class="txn-amt-pill amt-dr">${window.Utils.formatCurrency(s.closing_outstanding)}</span></td>
+                            <td class="text-right text-muted">${window.Utils.formatCurrency(s.minimum_due)}</td>
+                            <td>${window.Utils.formatDate(s.due_date)}</td>
+                            <td><span class="vivid-pill ${pillCls}"><span class="pill-dot"></span>${esc(st)}</span></td>
+                            <td>
+                                <div class="master-row-actions">
+                                    <button class="act-btn act-view" title="View Details" onclick="window.Payments.viewStatement('${s.statement_id}')"><i class="fas fa-eye"></i></button>
+                                    <button class="act-btn act-edit" title="Edit Statement" onclick="window.Payments.showStatementModal('${s.statement_id}')"><i class="fas fa-edit"></i></button>
+                                    ${hasPayment
+                                        ? `<button class="btn btn-sm pay-btn-info" onclick="window.Payments.viewStatement('${s.statement_id}')">Payment Details</button>`
+                                        : `<button class="btn btn-sm pay-btn-go" onclick="window.Payments.showPaymentModal('${s.card_id}', '${s.statement_id}')">Pay</button>`
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            html += `</tbody></table></div>`;
         }
-        
-        html += `</tbody></table></div>`;
+
+        html += `</div>`;
         content.innerHTML = html;
     },
 
     renderPayments: function(content) {
         const payments = window.DB.payments.getAll() || [];
         payments.sort((a,b) => new Date(b.payment_date || 0) - new Date(a.payment_date || 0));
-        
+
+        const totalPaid = payments.reduce((sum, p) => sum + (window.Utils.parseNum(p.amount) || 0), 0);
+        const allCards = window.DB.cards.getAll() || [];
+        const allStmts = window.DB.statements.getAll() || [];
+        const esc = window.Utils.escapeHtml;
+
         let html = `
-            <div class="card data-table-wrapper table-responsive mb-4">
+            <div class="txn-kpi-grid mb-4" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="txn-kpi-card kpi-credit">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Total Payments Recorded</span><span class="txn-kpi-icon"><i class="fas fa-check-double"></i></span></div>
+                    <div class="txn-kpi-val">${window.Utils.formatCurrency(totalPaid)}</div>
+                    <div class="txn-kpi-sub">${payments.length} completed settlements</div>
+                </div>
+                <div class="txn-kpi-card kpi-net-cr">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Latest Payment Date</span><span class="txn-kpi-icon"><i class="fas fa-calendar-check"></i></span></div>
+                    <div class="txn-kpi-val">${payments[0] ? window.Utils.formatDate(payments[0].payment_date) : '—'}</div>
+                    <div class="txn-kpi-sub">${payments[0] ? window.Utils.formatCurrency(payments[0].amount) : 'No payments yet'}</div>
+                </div>
+            </div>
+
+            <div class="card data-table-wrapper mb-4">
                 <div class="table-toolbar">
-                    <h4 class="card-title mb-0">Payment History</h4>
+                    <h4 class="card-title mb-0" style="font-weight:800;">Payment History</h4>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-primary" onclick="window.DataImport.openModal('payments')"><i class="fas fa-file-import"></i> Import</button>
-                        <button class="btn btn-success" onclick="window.Payments.showPaymentModal()"><i class="fas fa-plus"></i> Record Payment</button>
+                        <button class="btn btn-outline" onclick="window.DataImport.openModal('payments')" style="background:#eef2ff;color:#4361ee;border-color:#c7d2fe;border-radius:8px;font-weight:600;"><i class="fas fa-file-import"></i> Import</button>
+                        <button class="btn btn-success" onclick="window.Payments.showPaymentModal()" style="border-radius:8px;font-weight:600;"><i class="fas fa-plus"></i> Record Payment</button>
                     </div>
                 </div>
-                <table class="data-table">
+        `;
+
+        if (this.viewMode === 'cards') {
+            if (payments.length === 0) {
+                html += `<div class="empty-state py-5">No payments recorded.</div>`;
+            } else {
+                html += `<div class="pay-cards-grid">`;
+                payments.forEach((p, i) => {
+                    const c = allCards.find(x => String(x.card_id) === String(p.card_id));
+                    const s = allStmts.find(x => String(x.statement_id) === String(p.statement_id));
+                    const cardStr = c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unknown';
+                    const stmtStr = s ? window.Utils.formatMonthYear(s.statement_month) : 'N/A';
+
+                    html += `
+                        <article class="pay-card pay-card-emerald" style="animation-delay:${Math.min(i * 25, 240)}ms;">
+                            <div class="pay-card-top">
+                                <span class="vivid-pill pill-status-active"><span class="pill-dot"></span>${esc(p.status || 'Paid')}</span>
+                                <span class="txn-rc-date"><i class="far fa-calendar-alt"></i> ${window.Utils.formatDate(p.payment_date)}</span>
+                            </div>
+                            <div class="txn-rc-amount amt-cr">${window.Utils.formatCurrency(p.amount)}</div>
+                            <div class="pay-card-title">${esc(cardStr)}</div>
+                            <div class="txn-rc-tags">
+                                <span class="ledger-pill">${esc(p.payment_mode || 'Bank')}</span>
+                                <span class="vivid-pill pill-cat-primary">${esc(stmtStr)}</span>
+                                ${p.reference_no ? `<span class="card-num-pill">Ref: ${esc(p.reference_no)}</span>` : ''}
+                            </div>
+                        </article>
+                    `;
+                });
+                html += `</div>`;
+            }
+        } else {
+            html += `
+                <div class="master-table-scroll" tabindex="0" role="region" aria-label="Payment History Table">
+                <table class="data-table master-colorful-table table w-100 mb-0">
                     <thead>
                         <tr>
                             <th>Date</th>
@@ -146,81 +310,113 @@ window.Payments = {
                         </tr>
                     </thead>
                     <tbody>
-        `;
+            `;
 
-        const allCards = window.DB.cards.getAll() || [];
-        const allStmts = window.DB.statements.getAll() || [];
-        
-        if(payments.length === 0) {
-            html += `<tr><td colspan="7" class="text-center py-4">No payments recorded.</td></tr>`;
-        } else {
-            payments.forEach(p => {
-                const c = allCards.find(x => String(x.card_id) === String(p.card_id));
-                const s = allStmts.find(x => String(x.statement_id) === String(p.statement_id));
-                const cardStr = c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unknown';
-                const stmtStr = s ? window.Utils.formatMonthYear(s.statement_month) : 'N/A';
-                
-                html += `
-                    <tr>
-                        <td>${window.Utils.formatDate(p.payment_date)}</td>
-                        <td>${cardStr}</td>
-                        <td class="text-right fw-bold text-success">${window.Utils.formatCurrency(p.amount)}</td>
-                        <td>${p.payment_mode}</td>
-                        <td>${p.reference_no || '-'}</td>
-                        <td>${stmtStr}</td>
-                        <td><span class="badge bg-success">${p.status}</span></td>
-                    </tr>
-                `;
-            });
+            if(payments.length === 0) {
+                html += `<tr><td colspan="7" class="text-center py-4">No payments recorded.</td></tr>`;
+            } else {
+                payments.forEach(p => {
+                    const c = allCards.find(x => String(x.card_id) === String(p.card_id));
+                    const s = allStmts.find(x => String(x.statement_id) === String(p.statement_id));
+                    const cardStr = c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unknown';
+                    const stmtStr = s ? window.Utils.formatMonthYear(s.statement_month) : 'N/A';
+
+                    html += `
+                        <tr class="row-primary" style="--row-accent: #10b981;">
+                            <td><span class="sr-pill">${window.Utils.formatDate(p.payment_date)}</span></td>
+                            <td><span class="owner-text">${esc(cardStr)}</span></td>
+                            <td class="text-right"><span class="txn-amt-pill amt-cr">${window.Utils.formatCurrency(p.amount)}</span></td>
+                            <td><span class="ledger-pill">${esc(p.payment_mode || '')}</span></td>
+                            <td><span class="card-num-pill">${esc(p.reference_no || '-')}</span></td>
+                            <td><span class="vivid-pill pill-cat-primary">${esc(stmtStr)}</span></td>
+                            <td><span class="vivid-pill pill-status-active"><span class="pill-dot"></span>${esc(p.status || 'Paid')}</span></td>
+                        </tr>
+                    `;
+                });
+            }
+            html += `</tbody></table></div>`;
         }
-        
-        html += `</tbody></table></div>`;
+
+        html += `</div>`;
         content.innerHTML = html;
     },
 
     renderOutstanding: function(content) {
         const statements = window.DB.statements.getAll() || [];
         const allCards = window.DB.cards.getAll() || [];
-        
+        const esc = window.Utils.escapeHtml;
+
         const outstanding = statements.filter(s => s.payment_status !== 'Paid' && s.closing_outstanding > 0);
         outstanding.sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
-        
+
         let totalOut = 0;
         let totalOver = 0;
         const today = new Date();
-        
+
         outstanding.forEach(s => {
             totalOut += s.closing_outstanding;
             if(new Date(s.due_date) < today) totalOver += s.closing_outstanding;
         });
 
         let html = `
-            <div class="stats-row mb-4">
-                <div class="col-md-4">
-                    <div class="card bg-danger text-white p-3 shadow-sm">
-                        <h6 class="mb-1">Total Outstanding</h6>
-                        <h3 class="mb-0">${window.Utils.formatCurrency(totalOut)}</h3>
-                    </div>
+            <div class="txn-kpi-grid mb-4">
+                <div class="txn-kpi-card kpi-debit">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Total Outstanding</span><span class="txn-kpi-icon"><i class="fas fa-exclamation-triangle"></i></span></div>
+                    <div class="txn-kpi-val">${window.Utils.formatCurrency(totalOut)}</div>
+                    <div class="txn-kpi-sub">Immediate liquidity required</div>
                 </div>
-                <div class="col-md-4">
-                    <div class="card bg-dark text-white p-3 shadow-sm">
-                        <h6 class="mb-1">Total Overdue</h6>
-                        <h3 class="mb-0">${window.Utils.formatCurrency(totalOver)}</h3>
-                    </div>
+                <div class="txn-kpi-card kpi-net-cr" style="background: linear-gradient(135deg, #0f172a 0%, #991b1b 100%);">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Total Overdue</span><span class="txn-kpi-icon"><i class="fas fa-fire"></i></span></div>
+                    <div class="txn-kpi-val">${window.Utils.formatCurrency(totalOver)}</div>
+                    <div class="txn-kpi-sub">Past due date</div>
                 </div>
-                <div class="col-md-4">
-                    <div class="card bg-warning text-dark p-3 shadow-sm">
-                        <h6 class="mb-1">Pending Statements</h6>
-                        <h3 class="mb-0">${outstanding.length}</h3>
-                    </div>
+                <div class="txn-kpi-card kpi-net-dr">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Pending Statements</span><span class="txn-kpi-icon"><i class="fas fa-clock"></i></span></div>
+                    <div class="txn-kpi-val">${outstanding.length}</div>
+                    <div class="txn-kpi-sub">Awaiting settlement</div>
                 </div>
             </div>
 
-            <div class="card data-table-wrapper table-responsive mb-4">
+            <div class="card data-table-wrapper mb-4">
                 <div class="table-toolbar">
-                    <h4 class="card-title mb-0">Outstanding Statements</h4>
+                    <h4 class="card-title mb-0" style="font-weight:800;">Outstanding Statements</h4>
                 </div>
-                <table class="data-table">
+        `;
+
+        if (this.viewMode === 'cards') {
+            if (outstanding.length === 0) {
+                html += `<div class="empty-state py-5 text-success"><i class="fas fa-check-circle me-2"></i>All dues are cleared!</div>`;
+            } else {
+                html += `<div class="pay-cards-grid">`;
+                outstanding.forEach((s, i) => {
+                    const c = allCards.find(x => String(x.card_id) === String(s.card_id));
+                    const isOverdue = new Date(s.due_date) < today;
+                    const diffDays = isOverdue ? Math.ceil(Math.abs(today - new Date(s.due_date)) / (1000 * 60 * 60 * 24)) : 0;
+
+                    html += `
+                        <article class="pay-card ${isOverdue ? 'pay-card-rose' : 'pay-card-amber'}" style="animation-delay:${Math.min(i * 25, 240)}ms;">
+                            <div class="pay-card-top">
+                                <span class="vivid-pill ${isOverdue ? 'pill-status-blocked' : 'pill-cat-addon'}">
+                                    <span class="pill-dot"></span>${isOverdue ? `Overdue (${diffDays}d)` : 'Pending'}
+                                </span>
+                                <span class="vivid-pill pill-cat-primary">${esc(window.Utils.formatMonthYear(s.statement_month))}</span>
+                            </div>
+                            <div class="txn-rc-amount amt-dr">${window.Utils.formatCurrency(s.closing_outstanding)}</div>
+                            <div class="pay-card-title">${esc(c ? c.cardholder_name : 'Unknown')} (*${esc(c ? c.card_last4 : '')})</div>
+                            <div class="pay-card-due"><i class="fas fa-university"></i> ${esc(c ? c.bank_name : '')} &bull; Due: <strong>${window.Utils.formatDate(s.due_date)}</strong></div>
+                            <div class="pay-card-footer">
+                                <button class="act-btn act-view" title="View Details" onclick="window.Payments.viewStatement('${s.statement_id}')"><i class="fas fa-eye"></i></button>
+                                <button class="btn btn-sm pay-btn-go" onclick="window.Payments.showPaymentModal('${s.card_id}', '${s.statement_id}')"><i class="fas fa-bolt"></i> Pay Now</button>
+                            </div>
+                        </article>
+                    `;
+                });
+                html += `</div>`;
+            }
+        } else {
+            html += `
+                <div class="master-table-scroll" tabindex="0" role="region" aria-label="Outstanding Statements Table">
+                <table class="data-table master-colorful-table table w-100 mb-0">
                     <thead>
                         <tr>
                             <th>Due Date</th>
@@ -233,47 +429,44 @@ window.Payments = {
                         </tr>
                     </thead>
                     <tbody>
-        `;
+            `;
 
-        if(outstanding.length === 0) {
-            html += `<tr><td colspan="7" class="text-center py-4 text-success"><i class="fas fa-check-circle me-2"></i>All dues are cleared!</td></tr>`;
-        } else {
-            outstanding.forEach(s => {
-                const c = allCards.find(x => String(x.card_id) === String(s.card_id));
-                const isOverdue = new Date(s.due_date) < today;
-                const statusBadge = isOverdue ? 'bg-danger' : 'bg-warning text-dark';
-                const statusText = isOverdue ? 'Overdue' : 'Pending';
-                
-                let daysStr = '';
-                if(isOverdue) {
-                    const diffTime = Math.abs(today - new Date(s.due_date));
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                    daysStr = `<small class="text-danger d-block">${diffDays} days overdue</small>`;
-                }
+            if(outstanding.length === 0) {
+                html += `<tr><td colspan="7" class="text-center py-4 text-success"><i class="fas fa-check-circle me-2"></i>All dues are cleared!</td></tr>`;
+            } else {
+                outstanding.forEach(s => {
+                    const c = allCards.find(x => String(x.card_id) === String(s.card_id));
+                    const isOverdue = new Date(s.due_date) < today;
+                    const diffDays = isOverdue ? Math.ceil(Math.abs(today - new Date(s.due_date)) / (1000 * 60 * 60 * 24)) : 0;
 
-                html += `
-                    <tr class="${isOverdue ? 'table-danger' : ''}">
-                        <td><strong class="${isOverdue ? 'text-danger' : ''}">${window.Utils.formatDate(s.due_date)}</strong>${daysStr}</td>
-                        <td>${c ? c.cardholder_name : 'Unknown'} (*${c ? c.card_last4 : ''})</td>
-                        <td>${c ? c.bank_name : ''}</td>
-                        <td>${window.Utils.formatMonthYear(s.statement_month)}</td>
-                        <td class="text-right fw-bold">${window.Utils.formatCurrency(s.closing_outstanding)}</td>
-                        <td><span class="badge ${statusBadge}">${statusText}</span></td>
-                        <td>
-                            <div class="actions" style="align-items: center;">
-                                <button class="btn btn-sm btn-icon text-primary" title="View Details" onclick="window.Payments.viewStatement('${s.statement_id}')"><i class="fas fa-eye"></i></button>
-                                ${s.payment_status === 'Paid' || parseFloat(s.closing_outstanding) <= 0 
-                                    ? `<button class="btn btn-sm btn-outline-info ms-2" onclick="window.Payments.viewStatement('${s.statement_id}')">Payment Details</button>`
-                                    : `<button class="btn btn-sm btn-success ms-2" onclick="window.Payments.showPaymentModal('${s.card_id}', '${s.statement_id}')">Pay Now</button>`
-                                }
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
+                    html += `
+                        <tr class="${isOverdue ? 'row-addon' : 'row-primary'}" style="--row-accent: ${isOverdue ? '#f43f5e' : '#f59e0b'};">
+                            <td>
+                                <strong style="color:${isOverdue ? '#e11d48' : '#0f172a'};">${window.Utils.formatDate(s.due_date)}</strong>
+                                ${isOverdue ? `<small style="display:block;color:#e11d48;font-weight:700;">${diffDays} days overdue</small>` : ''}
+                            </td>
+                            <td><span class="owner-text">${esc(c ? c.cardholder_name : 'Unknown')} (*${esc(c ? c.card_last4 : '')})</span></td>
+                            <td><span class="ledger-pill">${esc(c ? c.bank_name : '')}</span></td>
+                            <td><span class="vivid-pill pill-cat-primary">${esc(window.Utils.formatMonthYear(s.statement_month))}</span></td>
+                            <td class="text-right"><span class="txn-amt-pill amt-dr">${window.Utils.formatCurrency(s.closing_outstanding)}</span></td>
+                            <td><span class="vivid-pill ${isOverdue ? 'pill-status-blocked' : 'pill-cat-addon'}"><span class="pill-dot"></span>${isOverdue ? 'Overdue' : 'Pending'}</span></td>
+                            <td>
+                                <div class="master-row-actions">
+                                    <button class="act-btn act-view" title="View Details" onclick="window.Payments.viewStatement('${s.statement_id}')"><i class="fas fa-eye"></i></button>
+                                    ${s.payment_status === 'Paid' || parseFloat(s.closing_outstanding) <= 0
+                                        ? `<button class="btn btn-sm pay-btn-info" onclick="window.Payments.viewStatement('${s.statement_id}')">Payment Details</button>`
+                                        : `<button class="btn btn-sm pay-btn-go" onclick="window.Payments.showPaymentModal('${s.card_id}', '${s.statement_id}')">Pay Now</button>`
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            html += `</tbody></table></div>`;
         }
-        
-        html += `</tbody></table></div>`;
+
+        html += `</div>`;
         content.innerHTML = html;
     },
 
@@ -448,32 +641,29 @@ window.Payments = {
             .reduce((s, u) => s + (window.Utils.parseNum(u.amount) || 0), 0);
 
         const months = [...new Set(unbilledRecords.map(u => u.expected_statement_month).filter(Boolean))].sort();
+        const esc = window.Utils.escapeHtml;
 
         let html = `
-            <div class="stats-row mb-4">
-                <div class="col-md-6">
-                    <div class="card p-3 shadow-sm" style="background:#fff7ed;border-left:4px solid #f97316;">
-                        <h6 class="text-muted mb-1">Total Pending Unbilled</h6>
-                        <h3 class="mb-0 text-dark fw-bold" style="color:#c2410c !important;">${window.Utils.formatCurrency(totalPending)}</h3>
-                        <small class="text-muted">Awaiting statement billing</small>
-                    </div>
+            <div class="txn-kpi-grid mb-4" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="txn-kpi-card kpi-net-dr">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Total Pending Unbilled</span><span class="txn-kpi-icon"><i class="fas fa-clock"></i></span></div>
+                    <div class="txn-kpi-val">${window.Utils.formatCurrency(totalPending)}</div>
+                    <div class="txn-kpi-sub">Awaiting statement billing</div>
                 </div>
-                <div class="col-md-6">
-                    <div class="card p-3 shadow-sm" style="background:#f0fdf4;border-left:4px solid #22c55e;">
-                        <h6 class="text-muted mb-1">Total Closed / Billed</h6>
-                        <h3 class="mb-0 text-dark fw-bold" style="color:#15803d !important;">${window.Utils.formatCurrency(totalBilled)}</h3>
-                        <small class="text-muted">Reconciled into statements</small>
-                    </div>
+                <div class="txn-kpi-card kpi-credit">
+                    <div class="txn-kpi-top"><span class="txn-kpi-lbl">Total Closed / Billed</span><span class="txn-kpi-icon"><i class="fas fa-check-circle"></i></span></div>
+                    <div class="txn-kpi-val">${window.Utils.formatCurrency(totalBilled)}</div>
+                    <div class="txn-kpi-sub">Reconciled into statements</div>
                 </div>
             </div>
 
-            <div class="card data-table-wrapper table-responsive mb-4">
+            <div class="card data-table-wrapper mb-4">
                 <div class="table-toolbar flex-wrap gap-2">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <h4 class="card-title mb-0 me-2">Unbilled Spends</h4>
+                        <h4 class="card-title mb-0 me-2" style="font-weight:800;">Unbilled Spends</h4>
                         <select class="form-select form-select-sm" style="width:auto;" onchange="window.Payments.unbilledCardFilter=this.value; window.Payments.renderTabContent();">
                             <option value="all">All Cards</option>
-                            ${allCards.map(c => `<option value="${c.card_id}" ${String(this.unbilledCardFilter) === String(c.card_id) ? 'selected' : ''}>${c.cardholder_name} (*${c.card_last4})</option>`).join('')}
+                            ${allCards.map(c => `<option value="${c.card_id}" ${String(this.unbilledCardFilter) === String(c.card_id) ? 'selected' : ''}>${esc(c.cardholder_name)} (*${esc(c.card_last4)})</option>`).join('')}
                         </select>
                         <select class="form-select form-select-sm" style="width:auto;" onchange="window.Payments.unbilledStatusFilter=this.value; window.Payments.renderTabContent();">
                             <option value="all" ${this.unbilledStatusFilter === 'all' ? 'selected' : ''}>All Status</option>
@@ -482,16 +672,51 @@ window.Payments = {
                         </select>
                         <select class="form-select form-select-sm" style="width:auto;" onchange="window.Payments.unbilledMonthFilter=this.value; window.Payments.renderTabContent();">
                             <option value="all">All Expected Months</option>
-                            ${months.map(m => `<option value="${m}" ${this.unbilledMonthFilter === m ? 'selected' : ''}>${m}</option>`).join('')}
+                            ${months.map(m => `<option value="${m}" ${this.unbilledMonthFilter === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}
                         </select>
                     </div>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-primary" onclick="window.DataImport.openModal('unbilled')"><i class="fas fa-file-import"></i> Import</button>
-                        <button class="btn btn-primary" onclick="window.Payments.showUnbilledModal()"><i class="fas fa-plus"></i> Add Unbilled Txn</button>
+                        <button class="btn btn-outline" onclick="window.DataImport.openModal('unbilled')" style="background:#eef2ff;color:#4361ee;border-color:#c7d2fe;border-radius:8px;font-weight:600;"><i class="fas fa-file-import"></i> Import</button>
+                        <button class="btn btn-primary" onclick="window.Payments.showUnbilledModal()" style="border-radius:8px;font-weight:600;"><i class="fas fa-plus"></i> Add Unbilled Txn</button>
                     </div>
                 </div>
+        `;
 
-                <table class="data-table">
+        if (this.viewMode === 'cards') {
+            if (filtered.length === 0) {
+                html += `<div class="empty-state py-5 text-muted">No unbilled records found matching filter.</div>`;
+            } else {
+                html += `<div class="pay-cards-grid">`;
+                filtered.forEach((u, i) => {
+                    const c = allCards.find(x => String(x.card_id) === String(u.card_id));
+                    const cardStr = c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unknown';
+                    const isBilled = u.status === 'Billed';
+
+                    html += `
+                        <article class="pay-card ${isBilled ? 'pay-card-emerald' : 'pay-card-amber'}" style="animation-delay:${Math.min(i * 25, 240)}ms;">
+                            <div class="pay-card-top">
+                                <span class="vivid-pill ${isBilled ? 'pill-status-active' : 'pill-cat-addon'}"><span class="pill-dot"></span>${isBilled ? 'Billed' : 'Unbilled'}</span>
+                                <span class="txn-rc-date"><i class="far fa-calendar-alt"></i> ${window.Utils.formatDate(u.txn_date)}</span>
+                            </div>
+                            <div class="txn-rc-amount ${isBilled ? 'amt-cr' : 'amt-dr'}">${window.Utils.formatCurrency(u.amount)}</div>
+                            <div class="pay-card-title">${esc(cardStr)}</div>
+                            <div class="txn-rc-desc">${esc(u.description || 'No description')}</div>
+                            <div class="pay-card-footer">
+                                <span class="vivid-pill pill-cat-primary">${esc(u.expected_statement_month || 'Unset')}</span>
+                                <div class="master-row-actions">
+                                    <button class="act-btn act-edit" title="Edit" onclick="window.Payments.showUnbilledModal('${u.unbilled_id}')"><i class="fas fa-edit"></i></button>
+                                    <button class="act-btn act-del" title="Delete" onclick="window.Payments.deleteUnbilled('${u.unbilled_id}')"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </article>
+                    `;
+                });
+                html += `</div>`;
+            }
+        } else {
+            html += `
+                <div class="master-table-scroll" tabindex="0" role="region" aria-label="Unbilled Spends Table">
+                <table class="data-table master-colorful-table table w-100 mb-0">
                     <thead>
                         <tr>
                             <th>Date</th>
@@ -505,39 +730,41 @@ window.Payments = {
                         </tr>
                     </thead>
                     <tbody>
-        `;
+            `;
 
-        if (filtered.length === 0) {
-            html += `<tr><td colspan="8" class="text-center py-4 text-muted">No unbilled records found matching filter.</td></tr>`;
-        } else {
-            filtered.forEach(u => {
-                const c = allCards.find(x => String(x.card_id) === String(u.card_id));
-                const cardStr = c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unknown';
-                const isBilled = u.status === 'Billed';
-                const statusBadge = isBilled ? '<span class="badge bg-success">Billed</span>' : '<span class="badge bg-warning text-dark">Unbilled</span>';
-                const stmtLink = u.statement_id ? `<a href="javascript:void(0)" onclick="window.Payments.viewStatement('${u.statement_id}')" class="text-primary fw-bold">Stmt #${u.statement_id}</a>` : '<span class="text-muted">-</span>';
+            if (filtered.length === 0) {
+                html += `<tr><td colspan="8" class="text-center py-4 text-muted">No unbilled records found matching filter.</td></tr>`;
+            } else {
+                filtered.forEach(u => {
+                    const c = allCards.find(x => String(x.card_id) === String(u.card_id));
+                    const cardStr = c ? `${c.cardholder_name} (*${c.card_last4})` : 'Unknown';
+                    const isBilled = u.status === 'Billed';
+                    const statusBadge = isBilled ? '<span class="vivid-pill pill-status-active"><span class="pill-dot"></span>Billed</span>' : '<span class="vivid-pill pill-cat-addon"><span class="pill-dot"></span>Unbilled</span>';
+                    const stmtLink = u.statement_id ? `<a href="javascript:void(0)" onclick="window.Payments.viewStatement('${u.statement_id}')" class="ledger-pill">Stmt #${u.statement_id}</a>` : '<span class="text-muted">-</span>';
 
-                html += `
-                    <tr>
-                        <td>${window.Utils.formatDate(u.txn_date)}</td>
-                        <td><strong>${cardStr}</strong></td>
-                        <td>${u.description || '-'}</td>
-                        <td><code>${u.expected_statement_month || '-'}</code></td>
-                        <td class="text-right fw-bold">${window.Utils.formatCurrency(u.amount)}</td>
-                        <td>${statusBadge}</td>
-                        <td>${stmtLink}</td>
-                        <td>
-                            <div class="actions">
-                                <button class="btn btn-sm btn-icon text-warning" title="Edit" onclick="window.Payments.showUnbilledModal('${u.unbilled_id}')"><i class="fas fa-edit"></i></button>
-                                <button class="btn btn-sm btn-icon text-danger" title="Delete" onclick="window.Payments.deleteUnbilled('${u.unbilled_id}')"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
+                    html += `
+                        <tr class="row-primary" style="--row-accent: ${isBilled ? '#10b981' : '#f59e0b'};">
+                            <td><span class="sr-pill">${window.Utils.formatDate(u.txn_date)}</span></td>
+                            <td><span class="owner-text">${esc(cardStr)}</span></td>
+                            <td>${esc(u.description || '-')}</td>
+                            <td><span class="vivid-pill pill-cat-primary">${esc(u.expected_statement_month || '-')}</span></td>
+                            <td class="text-right"><span class="txn-amt-pill ${isBilled ? 'amt-cr' : 'amt-dr'}">${window.Utils.formatCurrency(u.amount)}</span></td>
+                            <td>${statusBadge}</td>
+                            <td>${stmtLink}</td>
+                            <td>
+                                <div class="master-row-actions">
+                                    <button class="act-btn act-edit" title="Edit" onclick="window.Payments.showUnbilledModal('${u.unbilled_id}')"><i class="fas fa-edit"></i></button>
+                                    <button class="act-btn act-del" title="Delete" onclick="window.Payments.deleteUnbilled('${u.unbilled_id}')"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            html += `</tbody></table></div>`;
         }
 
-        html += `</tbody></table></div>`;
+        html += `</div>`;
         content.innerHTML = html;
     },
 

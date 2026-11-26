@@ -1,11 +1,42 @@
 window.Master = {
     currentPage: 1,
     pageSize: 10,
+    viewMode: localStorage.getItem('ccms_master_view') || 'table',
     currentFilter: '',
     currentBankFilter: '',
     currentCategoryFilter: '',
     currentOwnerFilter: '',
     currentStatusFilter: '',
+
+    _getBankTheme: function(bankName, cardType) {
+        const b = `${bankName || ''} ${cardType || ''}`.toUpperCase();
+        if (b.includes('HDFC'))   return { key: 'hdfc',  grad: 'linear-gradient(135deg, #1d4ed8 0%, #4338ca 52%, #7c3aed 100%)', glow: 'rgba(67, 56, 202, 0.52)', pillBg: '#dbeafe', pillText: '#1e40af', accent: '#3b82f6' };
+        if (b.includes('ICICI'))  return { key: 'icici', grad: 'linear-gradient(135deg, #059669 0%, #0d9488 52%, #06b6d4 100%)', glow: 'rgba(13, 148, 136, 0.5)', pillBg: '#ffedd5', pillText: '#c2410c', accent: '#f97316' };
+        if (b.includes('AMEX'))   return { key: 'amex',  grad: 'linear-gradient(135deg, #0284c7 0%, #2563eb 52%, #6366f1 100%)', glow: 'rgba(37, 99, 235, 0.5)', pillBg: '#e0f2fe', pillText: '#0369a1', accent: '#0ea5e9' };
+        if (b.includes('AXIS'))   return { key: 'axis',  grad: 'linear-gradient(135deg, #be185d 0%, #9d174d 50%, #7e22ce 100%)', glow: 'rgba(190, 24, 93, 0.5)', pillBg: '#fce7f3', pillText: '#9d174d', accent: '#db2777' };
+        if (b.includes('SBI'))    return { key: 'sbi',   grad: 'linear-gradient(135deg, #0369a1 0%, #1d4ed8 52%, #0891b2 100%)', glow: 'rgba(29, 78, 216, 0.5)', pillBg: '#e0f2fe', pillText: '#075985', accent: '#0284c7' };
+        if (b.includes('HSBC'))   return { key: 'hsbc',  grad: 'linear-gradient(135deg, #b91c1c 0%, #e11d48 52%, #be185d 100%)', glow: 'rgba(225, 29, 72, 0.5)', pillBg: '#fee2e2', pillText: '#b91c1c', accent: '#ef4444' };
+        if (b.includes('IDFC'))   return { key: 'idfc',  grad: 'linear-gradient(135deg, #6d28d9 0%, #a21caf 52%, #e11d48 100%)', glow: 'rgba(162, 28, 175, 0.5)', pillBg: '#f3e8ff', pillText: '#7e22ce', accent: '#a855f7' };
+        if (b.includes('KOTAK'))  return { key: 'kotak', grad: 'linear-gradient(135deg, #dc2626 0%, #ea580c 52%, #b91c1c 100%)', glow: 'rgba(234, 88, 12, 0.5)', pillBg: '#fee2e2', pillText: '#991b1b', accent: '#dc2626' };
+        return { key: 'default', grad: 'linear-gradient(135deg, #4338ca 0%, #7c3aed 52%, #ec4899 100%)', glow: 'rgba(124, 58, 237, 0.5)', pillBg: '#eef2ff', pillText: '#4338ca', accent: '#6366f1' };
+    },
+
+    _getInitials: function(name) {
+        const parts = String(name || 'CC').trim().split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        return String(name || 'CC').substring(0, 2).toUpperCase();
+    },
+
+    setViewMode: function(mode) {
+        this.viewMode = mode === 'cards' ? 'cards' : 'table';
+        localStorage.setItem('ccms_master_view', this.viewMode);
+        document.querySelectorAll('.view-switch-btn').forEach(btn => {
+            const active = btn.dataset.view === this.viewMode;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        this.renderTable();
+    },
 
     render: function(container) {
         this.container = container;
@@ -20,6 +51,14 @@ window.Master = {
                 <div class="page-subtitle text-muted">Manage all credit cards in the system</div>
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="view-switcher" role="group" aria-label="View mode">
+                    <button type="button" class="view-switch-btn ${this.viewMode === 'table' ? 'active' : ''}" data-view="table" aria-pressed="${this.viewMode === 'table'}" onclick="window.Master.setViewMode('table')">
+                        <i class="fas fa-table"></i> <span>Table View</span>
+                    </button>
+                    <button type="button" class="view-switch-btn ${this.viewMode === 'cards' ? 'active' : ''}" data-view="cards" aria-pressed="${this.viewMode === 'cards'}" onclick="window.Master.setViewMode('cards')">
+                        <i class="fas fa-th-large"></i> <span>Card View</span>
+                    </button>
+                </div>
                 <input type="file" id="card-master-file-input" accept=".xlsx,.xls,.csv" style="display:none;" onchange="window.Master.handleImportFile(event)">
                 <button class="btn btn-outline" onclick="window.Master.downloadSampleTemplate()" title="Download sample Excel template for importing cards" style="background:#ffffff;border-radius:8px;font-weight:600;">
                     <i class="fas fa-file-download text-success"></i> Template
@@ -126,59 +165,135 @@ window.Master = {
         const pageData = window.Utils.paginate(cards.length, this.currentPage, pageSize);
         const currentCards = cards.slice(pageData.start, pageData.end);
 
-        let html = `
-            <table class="data-table table w-100 table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Sr.No</th>
-                        <th>Cardholder Name</th>
-                        <th>Category</th>
-                        <th>Primary Owner</th>
-                        <th>Bank</th>
-                        <th>Card Type</th>
-                        <th>Card Number</th>
-                        <th>Zoho Ledger</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
+        let html = '';
 
-        if(currentCards.length === 0) {
-            html += `<tr><td colspan="10" class="text-center py-4 empty-state">No cards found.</td></tr>`;
+        if (this.viewMode === 'cards') {
+            if (currentCards.length === 0) {
+                html = `<div class="empty-state py-5"><i class="fas fa-credit-card mb-2" style="font-size:2.5rem;opacity:0.35;"></i><h4>No cards found</h4><p class="text-muted">Try adjusting your search or filter criteria.</p></div>`;
+            } else {
+                html = `<div class="master-cards-grid">`;
+                currentCards.forEach((c, i) => {
+                    const theme = this._getBankTheme(c.bank_name, c.card_type);
+                    const isPrimary = c.card_category === 'Primary';
+                    const statusCls = c.status === 'Active' ? 'status-active' : (c.status === 'Blocked' ? 'status-blocked' : 'status-inactive');
+                    const limitVal = window.Utils.parseNum(c.credit_limit || 0);
+                    const limitText = limitVal > 0 ? window.Utils.formatCurrency(limitVal) : 'Shared / Unset';
+
+                    html += `
+                        <article class="cc-visual-card" style="background: ${theme.grad}; --card-glow: ${theme.glow}; animation-delay: ${Math.min(i * 35, 280)}ms;">
+                            <div class="cc-card-sheen" aria-hidden="true"></div>
+                            <div class="cc-card-top">
+                                <div class="cc-chip-wrap">
+                                    <div class="cc-emv-chip"></div>
+                                    <span class="cc-cat-tag ${isPrimary ? 'is-primary' : 'is-addon'}">${window.Utils.escapeHtml(c.card_category || 'Card')}</span>
+                                </div>
+                                <span class="cc-status-pill ${statusCls}">
+                                    <span class="cc-status-dot"></span>${window.Utils.escapeHtml(c.status || 'Active')}
+                                </span>
+                            </div>
+
+                            <div class="cc-bank-row">
+                                <span class="cc-bank-name">${window.Utils.escapeHtml(c.bank_name || 'Bank')}</span>
+                                <span class="cc-card-type">${window.Utils.escapeHtml(c.card_type || '')}</span>
+                            </div>
+
+                            <div class="cc-card-num">${window.Utils.maskCardNumber(c.card_number || '')}</div>
+
+                            <div class="cc-holder-row">
+                                <div>
+                                    <div class="cc-meta-label">CARDHOLDER</div>
+                                    <a href="#" class="cc-holder-link" onclick="window.Master.viewCardLedger('${c.card_id}'); return false;">
+                                        ${window.Utils.escapeHtml(c.cardholder_name || '')}
+                                    </a>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div class="cc-meta-label">PRIMARY OWNER</div>
+                                    <div class="cc-owner-name">${window.Utils.escapeHtml(c.primary_cardholder || '')}</div>
+                                </div>
+                            </div>
+
+                            <div class="cc-card-footer">
+                                <div class="cc-ledger-meta">
+                                    <span class="cc-ledger-tag" title="Zoho Ledger"><i class="fas fa-book"></i> ${window.Utils.escapeHtml(c.zoho_ledger_name || 'Unmapped')}</span>
+                                    <span class="cc-limit-tag">Limit: ${limitText}</span>
+                                </div>
+                                <div class="cc-card-actions">
+                                    <button type="button" class="cc-act-btn" title="View Details" onclick="window.Master.viewCard('${c.card_id}')"><i class="fas fa-eye"></i></button>
+                                    <button type="button" class="cc-act-btn" title="Edit Card" onclick="window.Master.editCard('${c.card_id}')"><i class="fas fa-edit"></i></button>
+                                    <button type="button" class="cc-act-btn cc-act-del" title="Delete Card" onclick="window.Master.deleteCard('${c.card_id}')"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </article>
+                    `;
+                });
+                html += `</div>`;
+            }
         } else {
-            currentCards.forEach((c, i) => {
-                const srNo = pageData.start + i + 1;
-                const rowClass = c.card_category === 'Primary' ? 'row-primary' : 'row-addon';
-                const catBadge = c.card_category === 'Primary' ? 'status status-active badge bg-primary' : 'status status-info badge bg-info';
-                
-                let statusBadge = 'bg-secondary';
-                if(c.status === 'Active') statusBadge = 'bg-success';
-                else if(c.status === 'Blocked') statusBadge = 'bg-danger';
+            html = `
+                <div class="master-table-scroll" tabindex="0" role="region" aria-label="Master Card List Table">
+                <table class="data-table master-colorful-table table w-100 mb-0">
+                    <thead>
+                        <tr>
+                            <th>Sr.No</th>
+                            <th>Cardholder Name</th>
+                            <th>Category</th>
+                            <th>Primary Owner</th>
+                            <th>Bank</th>
+                            <th>Card Type</th>
+                            <th>Card Number</th>
+                            <th>Zoho Ledger</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
 
-                html += `
-                    <tr class="${rowClass}">
-                        <td>${srNo}</td>
-                        <td><a href="#" class="text-decoration-none fw-bold text-primary" onclick="window.Master.viewCardLedger('${c.card_id}'); return false;">${window.Utils.escapeHtml(c.cardholder_name || '')}</a></td>
-                        <td><span class="${catBadge}">${c.card_category || 'N/A'}</span></td>
-                        <td>${window.Utils.escapeHtml(c.primary_cardholder || '')}</td>
-                        <td>${window.Utils.escapeHtml(c.bank_name || '')}</td>
-                        <td>${window.Utils.escapeHtml(c.card_type || '')}</td>
-                        <td>${window.Utils.maskCardNumber(c.card_number || '')}</td>
-                        <td>${window.Utils.escapeHtml(c.zoho_ledger_name || '')}</td>
-                        <td><span class="status badge ${statusBadge}">${c.status || 'N/A'}</span></td>
-                        <td>
-                            <button class="btn btn-sm btn-icon text-primary" onclick="window.Master.viewCard('${c.card_id}')"><i class="fas fa-eye"></i></button>
-                            <button class="btn btn-sm btn-icon text-warning" onclick="window.Master.editCard('${c.card_id}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn btn-sm btn-icon text-danger" onclick="window.Master.deleteCard('${c.card_id}')"><i class="fas fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
+            if(currentCards.length === 0) {
+                html += `<tr><td colspan="10" class="text-center py-4 empty-state">No cards found.</td></tr>`;
+            } else {
+                currentCards.forEach((c, i) => {
+                    const srNo = pageData.start + i + 1;
+                    const theme = this._getBankTheme(c.bank_name, c.card_type);
+                    const initials = this._getInitials(c.cardholder_name);
+                    const isPrimary = c.card_category === 'Primary';
+                    const rowClass = isPrimary ? 'row-primary' : 'row-addon';
+                    const catPillClass = isPrimary ? 'pill-cat-primary' : 'pill-cat-addon';
+                    
+                    let statusPillClass = 'pill-status-inactive';
+                    if(c.status === 'Active') statusPillClass = 'pill-status-active';
+                    else if(c.status === 'Blocked') statusPillClass = 'pill-status-blocked';
+
+                    html += `
+                        <tr class="${rowClass}" style="--row-accent: ${theme.accent};">
+                            <td data-label="Sr.No"><span class="sr-pill">${srNo}</span></td>
+                            <td data-label="Cardholder">
+                                <a href="#" class="holder-cell-link" onclick="window.Master.viewCardLedger('${c.card_id}'); return false;">
+                                    <span class="holder-avatar" style="background: ${theme.grad};">${initials}</span>
+                                    <span class="holder-name-text">${window.Utils.escapeHtml(c.cardholder_name || '')}</span>
+                                </a>
+                            </td>
+                            <td data-label="Category"><span class="vivid-pill ${catPillClass}">${window.Utils.escapeHtml(c.card_category || 'N/A')}</span></td>
+                            <td data-label="Primary Owner"><span class="owner-text">${window.Utils.escapeHtml(c.primary_cardholder || '')}</span></td>
+                            <td data-label="Bank"><span class="vivid-pill bank-pill" style="background: ${theme.pillBg}; color: ${theme.pillText}; border-color: ${theme.accent}33;">${window.Utils.escapeHtml(c.bank_name || '')}</span></td>
+                            <td data-label="Card Type"><span class="card-type-text">${window.Utils.escapeHtml(c.card_type || '')}</span></td>
+                            <td data-label="Card Number"><span class="card-num-pill">${window.Utils.maskCardNumber(c.card_number || '')}</span></td>
+                            <td data-label="Zoho Ledger"><span class="ledger-pill">${window.Utils.escapeHtml(c.zoho_ledger_name || '')}</span></td>
+                            <td data-label="Status"><span class="vivid-pill ${statusPillClass}"><span class="pill-dot"></span>${window.Utils.escapeHtml(c.status || 'N/A')}</span></td>
+                            <td data-label="Actions">
+                                <div class="master-row-actions">
+                                    <button class="act-btn act-view" title="View" onclick="window.Master.viewCard('${c.card_id}')"><i class="fas fa-eye"></i></button>
+                                    <button class="act-btn act-edit" title="Edit" onclick="window.Master.editCard('${c.card_id}')"><i class="fas fa-edit"></i></button>
+                                    <button class="act-btn act-del" title="Delete" onclick="window.Master.deleteCard('${c.card_id}')"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            html += `</tbody></table></div>`;
         }
-        
-        html += `</tbody></table>`;
         
         // Pagination & Rows Per Page Footer
         html += `
@@ -191,7 +306,7 @@ window.Master = {
                     <option value="100" ${this.pageSize === 100 ? 'selected' : ''}>100 rows</option>
                     <option value="200" ${this.pageSize === 200 ? 'selected' : ''}>200 rows</option>
                 </select>
-                <span class="pagination-info">Showing ${pageData.start + 1} to ${pageData.end} of ${cards.length} entries</span>
+                <span class="pagination-info">Showing ${cards.length ? pageData.start + 1 : 0} to ${pageData.end} of ${cards.length} entries</span>
             </div>
             <ul class="pagination mb-0">
                 <li class="page-item ${this.currentPage === 1 ? 'disabled' : ''}">
@@ -325,154 +440,343 @@ window.Master = {
         const card = window.DB.cards.getById(id);
         if(!card) return;
 
+        const esc = window.Utils.escapeHtml;
+        const theme = this._getBankTheme(card.bank_name, card.card_type);
+        const isPrimary = card.card_category === 'Primary';
+        const statusCls = card.status === 'Active' ? 'status-active' : (card.status === 'Blocked' ? 'status-blocked' : 'status-inactive');
+
+        const rawNum = String(card.card_number || '').replace(/\s+/g, '');
+        const formattedNum = rawNum ? rawNum.replace(/(.{4})/g, '$1 ').trim() : '•••• •••• •••• ••••';
+        const maskedNum = window.Utils.maskCardNumber(card.card_number || '');
+
+        const metrics = (window.DB.cards.getCardLimitMetrics && window.DB.cards.getCardLimitMetrics(card.card_id)) || { used: 0, available: 0 };
+        const limitVal = window.Utils.parseNum(card.credit_limit || 0);
+        const rewardVal = window.Utils.parseNum(card.reward_points || 0);
+        const waiverVal = window.Utils.parseNum(card.fee_waiver_target || 0);
+
+        const formatDay = (d) => (d !== null && d !== undefined && String(d).trim() !== '' && !isNaN(d)) ? `Day ${d} of month` : 'Not Set';
+
         const html = `
-            <div class="row">
-                <div class="col-md-6 mb-2"><strong>Cardholder:</strong> ${card.cardholder_name}</div>
-                <div class="col-md-6 mb-2"><strong>Primary Owner:</strong> ${card.primary_cardholder}</div>
-                <div class="col-md-6 mb-2"><strong>Category:</strong> ${card.card_category}</div>
-                <div class="col-md-6 mb-2"><strong>Bank:</strong> ${card.bank_name}</div>
-                <div class="col-md-6 mb-2"><strong>Card Type:</strong> ${card.card_type}</div>
-                <div class="col-md-6 mb-2"><strong>Card Number:</strong> ${card.card_number}</div>
-                <div class="col-md-6 mb-2"><strong>Ledger Name:</strong> ${card.zoho_ledger_name}</div>
-                <div class="col-md-6 mb-2"><strong>Credit Limit:</strong> ${window.Utils.formatCurrency(card.credit_limit)}</div>
-                <div class="col-md-12 mb-2"><strong>Address:</strong> ${card.address}</div>
-                <div class="col-md-6 mb-2"><strong>Email:</strong> ${card.email}</div>
-                <div class="col-md-6 mb-2"><strong>Phone:</strong> ${card.phone}</div>
-                <div class="col-md-6 mb-2"><strong>Statement Date:</strong> ${card.statement_date}</div>
-                <div class="col-md-6 mb-2"><strong>Due Date:</strong> ${card.due_date}</div>
-                <div class="col-md-6 mb-2"><strong>Renewal Date:</strong> ${card.renewal_date ? window.Utils.formatDate(card.renewal_date) : ''}</div>
-                <div class="col-md-6 mb-2"><strong>Fee Waiver Target:</strong> ${window.Utils.formatCurrency(card.fee_waiver_target)}</div>
-                <div class="col-md-6 mb-2"><strong>Reward Points:</strong> ${card.reward_points}</div>
-                <div class="col-md-6 mb-2"><strong>Status:</strong> ${card.status}</div>
-                <div class="col-md-12 mb-2"><strong>Remarks:</strong> ${card.remarks || ''}</div>
+            <div class="vc-modal-wrap">
+                <!-- Hero 3D Card Showcase -->
+                <div class="vc-modal-hero" style="background: ${theme.grad};">
+                    <div class="cc-card-sheen" aria-hidden="true"></div>
+                    <div class="cc-card-top">
+                        <div class="cc-chip-wrap">
+                            <div class="cc-emv-chip"></div>
+                            <span class="cc-cat-tag ${isPrimary ? 'is-primary' : 'is-addon'}">${esc(card.card_category || 'Card')}</span>
+                        </div>
+                        <span class="cc-status-pill ${statusCls}">
+                            <span class="cc-status-dot"></span>${esc(card.status || 'Active')}
+                        </span>
+                    </div>
+
+                    <div class="cc-bank-row" style="margin-top: 6px;">
+                        <span class="cc-bank-name" style="font-size: 1.15rem;">${esc(card.bank_name || 'Bank')}</span>
+                        <span class="cc-card-type">${esc(card.card_type || '')}</span>
+                    </div>
+
+                    <div class="vc-modal-num-row">
+                        <span id="vc-modal-card-num" class="vc-modal-num" data-masked="${esc(maskedNum)}" data-full="${esc(formattedNum)}" data-revealed="false">${esc(maskedNum)}</span>
+                        <div class="vc-num-tools">
+                            <button type="button" class="vc-tool-btn" id="vc-reveal-btn" title="Reveal / Mask Card Number" onclick="(function(b){var el=document.getElementById('vc-modal-card-num');if(!el)return;var rev=el.dataset.revealed==='true';el.textContent=rev?el.dataset.masked:el.dataset.full;el.dataset.revealed=rev?'false':'true';b.innerHTML=rev?'<i class=\\'fas fa-eye\\'></i>':'<i class=\\'fas fa-eye-slash\\'></i>';})(this)">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button type="button" class="vc-tool-btn" title="Copy Card Number" onclick="navigator.clipboard?.writeText('${esc(rawNum)}').then(()=>window.App?.showToast('Card number copied!','success'))">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="cc-holder-row">
+                        <div>
+                            <div class="cc-meta-label">CARDHOLDER</div>
+                            <div class="cc-holder-link" style="font-size: 1rem;">${esc(card.cardholder_name || '—')}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div class="cc-meta-label">PRIMARY OWNER</div>
+                            <div class="cc-owner-name">${esc(card.primary_cardholder || '—')}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4-Tile KPI Strip -->
+                <div class="vc-kpi-strip">
+                    <div class="vc-kpi-tile kpi-indigo">
+                        <div class="vc-kpi-label"><i class="fas fa-tachometer-alt"></i> Credit Limit</div>
+                        <div class="vc-kpi-val">${limitVal > 0 ? window.Utils.formatCurrency(limitVal) : 'Unset'}</div>
+                    </div>
+                    <div class="vc-kpi-tile kpi-emerald">
+                        <div class="vc-kpi-label"><i class="fas fa-wallet"></i> Used Exposure</div>
+                        <div class="vc-kpi-val">${window.Utils.formatCurrency(metrics.used || 0)}</div>
+                    </div>
+                    <div class="vc-kpi-tile kpi-amber">
+                        <div class="vc-kpi-label"><i class="fas fa-star"></i> Reward Points</div>
+                        <div class="vc-kpi-val">${rewardVal.toLocaleString('en-IN')}</div>
+                    </div>
+                    <div class="vc-kpi-tile kpi-purple">
+                        <div class="vc-kpi-label"><i class="fas fa-gift"></i> Fee Waiver</div>
+                        <div class="vc-kpi-val">${waiverVal > 0 ? window.Utils.formatCurrency(waiverVal) : 'None'}</div>
+                    </div>
+                </div>
+
+                <!-- Bento Detail Grid -->
+                <div class="vc-bento-grid">
+                    <div class="vc-bento-box">
+                        <div class="vc-bento-title"><i class="fas fa-calendar-check"></i> Billing &amp; Ledger</div>
+                        <div class="vc-detail-list">
+                            <div class="vc-detail-row">
+                                <span>Zoho Ledger</span>
+                                <strong class="vc-ledger-chip">${esc(card.zoho_ledger_name || 'Unmapped')}</strong>
+                            </div>
+                            <div class="vc-detail-row">
+                                <span>Statement Date</span>
+                                <strong>${esc(formatDay(card.statement_date))}</strong>
+                            </div>
+                            <div class="vc-detail-row">
+                                <span>Due Date</span>
+                                <strong>${esc(formatDay(card.due_date))}</strong>
+                            </div>
+                            <div class="vc-detail-row">
+                                <span>Renewal Date</span>
+                                <strong>${card.renewal_date ? esc(window.Utils.formatDate(card.renewal_date)) : 'Not Set'}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vc-bento-box">
+                        <div class="vc-bento-title"><i class="fas fa-address-card"></i> Contact &amp; Notes</div>
+                        <div class="vc-detail-list">
+                            <div class="vc-detail-row">
+                                <span>Email</span>
+                                <strong>${esc(card.email || '—')}</strong>
+                            </div>
+                            <div class="vc-detail-row">
+                                <span>Phone</span>
+                                <strong>${esc(card.phone || '—')}</strong>
+                            </div>
+                            <div class="vc-detail-row vc-detail-col">
+                                <span>Billing Address</span>
+                                <div class="vc-addr-box">${esc(card.address || 'No address recorded')}</div>
+                            </div>
+                            ${card.remarks ? `
+                            <div class="vc-detail-row vc-detail-col">
+                                <span>Remarks</span>
+                                <div class="vc-addr-box">${esc(card.remarks)}</div>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Quick Actions -->
+                <div class="vc-modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="window.App?.closeModal(); window.Master.viewCardLedger('${card.card_id}');" style="border-radius: 10px;">
+                        <i class="fas fa-file-invoice-dollar"></i> Statement Ledger
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary" onclick="window.App?.closeModal(); window.Master.editCard('${card.card_id}');" style="border-radius: 10px;">
+                            <i class="fas fa-edit"></i> Edit Card
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="window.App?.closeModal();" style="border-radius: 10px;">
+                            Close
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
 
         if(window.App && window.App.showModal) {
-            window.App.showModal("View Card Details", html);
+            window.App.showModal("Card Intelligence & Details", html);
         } else {
             alert(JSON.stringify(card, null, 2));
         }
     },
 
+    _syncFormPreview: function() {
+        const bank = document.getElementById('f_bank')?.value || '';
+        const type = document.getElementById('f_type')?.value || '';
+        const num = document.getElementById('f_number')?.value || '';
+        const name = document.getElementById('f_name')?.value || 'CARDHOLDER NAME';
+        const owner = document.getElementById('f_owner')?.value || 'Primary Owner';
+        const cat = document.getElementById('f_cat')?.value || 'Primary';
+        const status = document.getElementById('f_status')?.value || 'Active';
+
+        const theme = this._getBankTheme(bank, type);
+        const hero = document.getElementById('cf-live-preview');
+        if (hero) hero.style.background = theme.grad;
+
+        const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setTxt('cf-prev-bank', bank || 'BANK NAME');
+        setTxt('cf-prev-type', type || 'Card Variant');
+        setTxt('cf-prev-num', num ? window.Utils.maskCardNumber(num) : '•••• •••• •••• ••••');
+        setTxt('cf-prev-holder', name || 'CARDHOLDER NAME');
+        setTxt('cf-prev-owner', owner || 'Primary Owner');
+        setTxt('cf-prev-cat', cat);
+        setTxt('cf-prev-status-txt', status);
+
+        const catEl = document.getElementById('cf-prev-cat');
+        if (catEl) catEl.className = `cc-cat-tag ${cat === 'Primary' ? 'is-primary' : 'is-addon'}`;
+
+        const stEl = document.getElementById('cf-prev-status');
+        if (stEl) stEl.className = `cc-status-pill ${status === 'Active' ? 'status-active' : (status === 'Blocked' ? 'status-blocked' : 'status-inactive')}`;
+    },
+
     renderFormModal: function(card) {
         const isEdit = !!card;
         const c = card || {};
+        const esc = window.Utils.escapeHtml;
+        const theme = this._getBankTheme(c.bank_name, c.card_type);
+        const isPrimary = (c.card_category || 'Primary') === 'Primary';
+        const statusCls = (c.status || 'Active') === 'Active' ? 'status-active' : (c.status === 'Blocked' ? 'status-blocked' : 'status-inactive');
         
         const html = `
-            <form id="cardForm" onsubmit="event.preventDefault(); window.Master.saveCard('${c.card_id || ''}')">
-                <div class="row form-row mb-3">
-                    <div class="col-md-4 form-group">
-                        <label class="form-label">Primary Owner</label>
-                        <input type="text" class="form-control" id="f_owner" value="${c.primary_cardholder || ''}" required>
+            <form id="cardForm" class="cf-nextgen-form" onsubmit="event.preventDefault(); window.Master.saveCard('${esc(c.card_id || '')}')">
+                <!-- Live Interactive Card Preview -->
+                <div id="cf-live-preview" class="cf-live-card" style="background: ${theme.grad};">
+                    <div class="cc-card-sheen" aria-hidden="true"></div>
+                    <div class="cc-card-top">
+                        <div class="cc-chip-wrap">
+                            <div class="cc-emv-chip"></div>
+                            <span id="cf-prev-cat" class="cc-cat-tag ${isPrimary ? 'is-primary' : 'is-addon'}">${esc(c.card_category || 'Primary')}</span>
+                        </div>
+                        <span id="cf-prev-status" class="cc-status-pill ${statusCls}">
+                            <span class="cc-status-dot"></span><span id="cf-prev-status-txt">${esc(c.status || 'Active')}</span>
+                        </span>
                     </div>
-                    <div class="col-md-4 form-group">
-                        <label class="form-label">Category</label>
-                        <select class="form-select" id="f_cat" required>
-                            <option value="Primary" ${c.card_category === 'Primary' ? 'selected' : ''}>Primary</option>
-                            <option value="Add-on" ${c.card_category === 'Add-on' ? 'selected' : ''}>Add-on</option>
-                        </select>
+                    <div class="cc-bank-row">
+                        <span id="cf-prev-bank" class="cc-bank-name">${esc(c.bank_name || 'BANK NAME')}</span>
+                        <span id="cf-prev-type" class="cc-card-type">${esc(c.card_type || 'Card Variant')}</span>
                     </div>
-                    <div class="col-md-4 form-group">
-                        <label class="form-label">Cardholder Name</label>
-                        <input type="text" class="form-control" id="f_name" value="${c.cardholder_name || ''}" required>
-                    </div>
-                </div>
-
-                <div class="row form-row mb-3">
-                    <div class="col-md-4 form-group">
-                        <label class="form-label">Bank Name</label>
-                        <input type="text" class="form-control" id="f_bank" value="${c.bank_name || ''}" required>
-                    </div>
-                    <div class="col-md-4 form-group">
-                        <label class="form-label">Card Type</label>
-                        <input type="text" class="form-control" id="f_type" value="${c.card_type || ''}" required>
-                    </div>
-                    <div class="col-md-4 form-group">
-                        <label class="form-label">Card Number</label>
-                        <input type="text" class="form-control" id="f_number" value="${c.card_number || ''}" required>
+                    <div id="cf-prev-num" class="cc-card-num" style="font-size: 1rem;">${c.card_number ? esc(window.Utils.maskCardNumber(c.card_number)) : '•••• •••• •••• ••••'}</div>
+                    <div class="cc-holder-row">
+                        <div>
+                            <div class="cc-meta-label">CARDHOLDER</div>
+                            <div id="cf-prev-holder" class="cc-holder-link">${esc(c.cardholder_name || 'CARDHOLDER NAME')}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div class="cc-meta-label">PRIMARY OWNER</div>
+                            <div id="cf-prev-owner" class="cc-owner-name">${esc(c.primary_cardholder || 'Primary Owner')}</div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="row form-row mb-3">
-                    <div class="col-md-6 form-group">
-                        <label class="form-label">Zoho Ledger Name</label>
-                        <input type="text" class="form-control" id="f_ledger" value="${c.zoho_ledger_name || ''}">
-                    </div>
-                    <div class="col-md-6 form-group">
-                        <label class="form-label">Credit Limit</label>
-                        <input type="number" step="0.01" class="form-control" id="f_limit" value="${c.credit_limit || ''}" required>
-                    </div>
-                </div>
-
-                <div class="row form-row mb-3">
-                    <div class="col-md-6 form-group">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" id="f_email" value="${c.email || ''}">
-                    </div>
-                    <div class="col-md-6 form-group">
-                        <label class="form-label">Phone</label>
-                        <input type="text" class="form-control" id="f_phone" value="${c.phone || ''}">
-                    </div>
-                </div>
-
-                <div class="row form-row mb-3">
-                    <div class="col-md-12 form-group">
-                        <label class="form-label">Address</label>
-                        <textarea class="form-control" id="f_address" rows="2">${c.address || ''}</textarea>
-                    </div>
-                </div>
-
-                <div class="row form-row mb-3">
-                    <div class="col-md-3 form-group">
-                        <label class="form-label">Statement Date (1-31)</label>
-                        <input type="number" min="1" max="31" class="form-control" id="f_stmt_date" value="${c.statement_date || ''}">
-                    </div>
-                    <div class="col-md-3 form-group">
-                        <label class="form-label">Due Date (1-31)</label>
-                        <input type="number" min="1" max="31" class="form-control" id="f_due_date" value="${c.due_date || ''}">
-                    </div>
-                    <div class="col-md-3 form-group">
-                        <label class="form-label">Renewal Date</label>
-                        <input type="date" class="form-control" id="f_renewal" value="${c.renewal_date ? window.Utils.formatDateInput(new Date(c.renewal_date)) : ''}">
-                    </div>
-                    <div class="col-md-3 form-group">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" id="f_status" required>
-                            <option value="Active" ${c.status === 'Active' ? 'selected' : ''}>Active</option>
-                            <option value="Inactive" ${c.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
-                            <option value="Blocked" ${c.status === 'Blocked' ? 'selected' : ''}>Blocked</option>
-                        </select>
+                <!-- Section 1: Card Identity -->
+                <div class="cf-section cf-sec-indigo">
+                    <div class="cf-sec-title"><i class="fas fa-id-card"></i> Card Identity &amp; Ownership</div>
+                    <div class="cf-grid-3">
+                        <div class="cf-field">
+                            <label for="f_owner">Primary Owner <span class="cf-req">*</span></label>
+                            <input type="text" class="form-control" id="f_owner" value="${esc(c.primary_cardholder || '')}" oninput="window.Master._syncFormPreview()" required>
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_cat">Category <span class="cf-req">*</span></label>
+                            <select class="form-select" id="f_cat" onchange="window.Master._syncFormPreview()" required>
+                                <option value="Primary" ${c.card_category === 'Primary' ? 'selected' : ''}>Primary</option>
+                                <option value="Add-on" ${c.card_category === 'Add-on' ? 'selected' : ''}>Add-on</option>
+                            </select>
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_name">Cardholder Name <span class="cf-req">*</span></label>
+                            <input type="text" class="form-control" id="f_name" value="${esc(c.cardholder_name || '')}" oninput="window.Master._syncFormPreview()" required>
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_bank">Bank Name <span class="cf-req">*</span></label>
+                            <input type="text" class="form-control" id="f_bank" value="${esc(c.bank_name || '')}" oninput="window.Master._syncFormPreview()" required>
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_type">Card Type <span class="cf-req">*</span></label>
+                            <input type="text" class="form-control" id="f_type" value="${esc(c.card_type || '')}" oninput="window.Master._syncFormPreview()" required>
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_number">Card Number <span class="cf-req">*</span></label>
+                            <input type="text" class="form-control" id="f_number" value="${esc(c.card_number || '')}" oninput="window.Master._syncFormPreview()" required>
+                        </div>
                     </div>
                 </div>
 
-                <div class="row form-row mb-3">
-                    <div class="col-md-6 form-group">
-                        <label class="form-label">Fee Waiver Target</label>
-                        <input type="number" step="0.01" class="form-control" id="f_waiver" value="${c.fee_waiver_target || ''}">
+                <!-- Section 2: Limits, Billing & Ledger -->
+                <div class="cf-section cf-sec-emerald">
+                    <div class="cf-sec-title"><i class="fas fa-sliders-h"></i> Limits, Billing Cycle &amp; Ledger</div>
+                    <div class="cf-grid-2">
+                        <div class="cf-field">
+                            <label for="f_ledger">Zoho Ledger Name</label>
+                            <input type="text" class="form-control" id="f_ledger" value="${esc(c.zoho_ledger_name || '')}">
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_limit">Credit Limit (₹) <span class="cf-req">*</span></label>
+                            <input type="number" step="0.01" class="form-control" id="f_limit" value="${c.credit_limit || ''}" required>
+                        </div>
                     </div>
-                    <div class="col-md-6 form-group">
-                        <label class="form-label">Reward Points</label>
-                        <input type="number" class="form-control" id="f_rewards" value="${c.reward_points || ''}">
+                    <div class="cf-grid-4" style="margin-top: 12px;">
+                        <div class="cf-field">
+                            <label for="f_stmt_date">Statement Day</label>
+                            <input type="number" min="1" max="31" inputmode="numeric" class="form-control" id="f_stmt_date" placeholder="1-31" value="${c.statement_date || ''}">
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_due_date">Due Day</label>
+                            <input type="number" min="1" max="31" inputmode="numeric" class="form-control" id="f_due_date" placeholder="1-31" value="${c.due_date || ''}">
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_renewal">Renewal Date</label>
+                            <input type="date" class="form-control" id="f_renewal" value="${c.renewal_date ? window.Utils.formatDateInput(new Date(c.renewal_date)) : ''}">
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_status">Status <span class="cf-req">*</span></label>
+                            <select class="form-select" id="f_status" onchange="window.Master._syncFormPreview()" required>
+                                <option value="Active" ${c.status === 'Active' ? 'selected' : ''}>Active</option>
+                                <option value="Inactive" ${c.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
+                                <option value="Blocked" ${c.status === 'Blocked' ? 'selected' : ''}>Blocked</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cf-grid-2" style="margin-top: 12px;">
+                        <div class="cf-field">
+                            <label for="f_waiver">Fee Waiver Target (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="f_waiver" value="${c.fee_waiver_target || ''}">
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_rewards">Reward Points</label>
+                            <input type="number" inputmode="numeric" class="form-control" id="f_rewards" value="${c.reward_points || ''}">
+                        </div>
                     </div>
                 </div>
 
-                <div class="row form-row mb-3">
-                    <div class="col-md-12 form-group">
-                        <label class="form-label">Remarks</label>
-                        <textarea class="form-control" id="f_remarks" rows="2">${c.remarks || ''}</textarea>
+                <!-- Section 3: Contact & Notes -->
+                <div class="cf-section cf-sec-purple">
+                    <div class="cf-sec-title"><i class="fas fa-address-book"></i> Contact &amp; Notes</div>
+                    <div class="cf-grid-2">
+                        <div class="cf-field">
+                            <label for="f_email">Email</label>
+                            <input type="email" class="form-control" id="f_email" value="${esc(c.email || '')}">
+                        </div>
+                        <div class="cf-field">
+                            <label for="f_phone">Phone</label>
+                            <input type="tel" inputmode="tel" class="form-control" id="f_phone" value="${esc(c.phone || '')}">
+                        </div>
+                    </div>
+                    <div class="cf-field" style="margin-top: 12px;">
+                        <label for="f_address">Billing Address</label>
+                        <textarea class="form-control" id="f_address" rows="2">${esc(c.address || '')}</textarea>
+                    </div>
+                    <div class="cf-field" style="margin-top: 12px;">
+                        <label for="f_remarks">Remarks</label>
+                        <textarea class="form-control" id="f_remarks" rows="2">${esc(c.remarks || '')}</textarea>
                     </div>
                 </div>
 
-                <div class="text-end">
-                    <button type="button" class="btn btn-secondary" onclick="window.App.closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">${isEdit ? 'Update Card' : 'Save Card'}</button>
+                <div class="cf-form-footer">
+                    <button type="button" class="btn btn-secondary" onclick="window.App.closeModal()" style="border-radius: 10px;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary cf-submit-btn">
+                        <i class="fas fa-${isEdit ? 'save' : 'plus-circle'}"></i> ${isEdit ? 'Update Card' : 'Save Card'}
+                    </button>
                 </div>
             </form>
         `;
 
         if(window.App && window.App.showModal) {
-            window.App.showModal(isEdit ? "Edit Card" : "Add New Card", html);
+            window.App.showModal(isEdit ? "Edit Card Profile" : "Add New Card", html);
         }
     },
 

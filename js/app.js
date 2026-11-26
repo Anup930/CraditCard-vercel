@@ -423,13 +423,19 @@ window.App = {
     },
 
     _setupUI() {
-        // Navigation
+        // Navigation + click ripple animation
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.preventDefault();
+                this._spawnRipple(item, e);
                 const page = item.dataset.page;
                 if (page) this.navigate(page);
             });
+        });
+
+        // Click ripple on topbar interactive buttons/badges
+        document.querySelectorAll('.header-info .btn, .header-info .badge, .btn-sidebar').forEach(el => {
+            el.addEventListener('click', (e) => this._spawnRipple(el, e));
         });
 
         // Sidebar toggle
@@ -545,6 +551,9 @@ window.App = {
         // Render page
         const content = document.getElementById('content');
         if (!content) return;
+        content.classList.remove('page-enter');
+        void content.offsetWidth;
+        content.classList.add('page-enter');
 
         switch(page) {
             case 'dashboard':    if (window.Dashboard    && Dashboard.render)    Dashboard.render(content);    break;
@@ -563,6 +572,104 @@ window.App = {
 
         this.updateCardCount();
         document.body.classList.remove('sidebar-open');
+    },
+
+    applyTheme(theme) {
+        const t = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.dataset.theme = t;
+        const meta = document.querySelector('meta[name="color-scheme"]');
+        if (meta) meta.content = t;
+
+        const btn = document.getElementById('btn-theme-toggle');
+        const icon = document.getElementById('theme-toggle-icon');
+        if (icon) icon.className = t === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+        if (btn) {
+            btn.setAttribute('aria-pressed', t === 'dark' ? 'true' : 'false');
+            btn.setAttribute('aria-label', t === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme');
+            btn.title = t === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme';
+        }
+
+        // Sync Chart.js global colors & active chart instances (both config.options and options)
+        if (window.Chart) {
+            const textColor = t === 'dark' ? '#e2e8f0' : '#475569';
+            const gridColor = t === 'dark' ? 'rgba(148, 163, 184, 0.16)' : '#f1f5f9';
+            const lineColor = t === 'dark' ? '#38bdf8' : '#0f172a';
+            const sliceBorder = t === 'dark' ? '#0f172a' : '#ffffff';
+            window.Chart.defaults.color = textColor;
+            window.Chart.defaults.borderColor = gridColor;
+
+            const instances = window.Chart.instances ? Object.values(window.Chart.instances) : [];
+            instances.forEach(ch => {
+                if (!ch || !ch.config) return;
+                const targets = [ch.config.options, ch.options].filter(Boolean);
+                targets.forEach(opts => {
+                    opts.plugins = opts.plugins || {};
+                    opts.plugins.legend = opts.plugins.legend || {};
+                    opts.plugins.legend.labels = opts.plugins.legend.labels || {};
+                    opts.plugins.legend.labels.color = textColor;
+
+                    if (opts.scales) {
+                        Object.values(opts.scales).forEach(sc => {
+                            if (!sc) return;
+                            sc.ticks = sc.ticks || {};
+                            sc.ticks.color = textColor;
+                            if (sc.grid && sc.grid.display !== false && sc.grid.drawOnChartArea !== false) {
+                                sc.grid.color = gridColor;
+                            }
+                            if (sc.title) sc.title.color = textColor;
+                        });
+                    }
+                });
+
+                if (ch.config.type === 'doughnut' || ch.config.type === 'pie') {
+                    ch.data?.datasets?.forEach(ds => { ds.borderColor = sliceBorder; });
+                } else {
+                    ch.data?.datasets?.forEach(ds => {
+                        if (ds.type === 'line') {
+                            ds.borderColor = lineColor;
+                            ds.backgroundColor = lineColor;
+                            ds.pointBorderColor = lineColor;
+                            ds.pointBackgroundColor = sliceBorder;
+                        }
+                    });
+                }
+                try { ch.update(); } catch (e) {}
+            });
+        }
+    },
+
+    toggleTheme() {
+        const current = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+        const next = current === 'dark' ? 'light' : 'dark';
+        try { localStorage.setItem('ccms_theme', next); } catch (e) {}
+        this.applyTheme(next);
+
+        // Cleanly re-render Dashboard or active Report charts so Chart.js v4 legend/ticks never retain stale cached colors
+        const content = document.getElementById('content');
+        if (content) {
+            if (this.currentPage === 'dashboard' && window.Dashboard && typeof window.Dashboard.render === 'function') {
+                const scrollY = content.scrollTop;
+                window.Dashboard.render(content);
+                content.scrollTop = scrollY;
+            } else if (this.currentPage === 'reports' && window.Reports && window.Reports.currentReportId && typeof window.Reports.refreshCurrentReport === 'function') {
+                window.Reports.refreshCurrentReport();
+            }
+        }
+    },
+
+    _spawnRipple(el, event) {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const rect = el.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height);
+        const ripple = document.createElement('span');
+        ripple.className = 'ui-ripple';
+        ripple.style.width = `${size}px`;
+        ripple.style.height = `${size}px`;
+        ripple.style.left = `${(event.clientX || (rect.left + rect.width / 2)) - rect.left - size / 2}px`;
+        ripple.style.top = `${(event.clientY || (rect.top + rect.height / 2)) - rect.top - size / 2}px`;
+        el.appendChild(ripple);
+        ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+        setTimeout(() => { if (ripple.parentNode) ripple.remove(); }, 650);
     },
 
     updateCardCount() {
@@ -716,6 +823,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (togglePwdBtn) {
         togglePwdBtn.addEventListener('click', () => Auth.togglePassword());
     }
+
+    // Sync theme button state & cross-tab theme changes
+    if (window.App && typeof window.App.applyTheme === 'function') {
+        window.App.applyTheme(document.documentElement.dataset.theme || 'light');
+    }
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'ccms_theme' && window.App) {
+            window.App.applyTheme(e.newValue || 'light');
+        }
+    });
 
     // System update overlay auto-popup disabled by default per user request.
     // Available on-demand via top navbar "Updates" button.
