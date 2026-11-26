@@ -304,7 +304,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 0 20px;
+    padding: 0 14px;
     position: fixed;
     top: 0;
     left: var(--sidebar-width);
@@ -316,12 +316,12 @@ body {
 .header-left, .header-right {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     min-width: 0;
 }
 
 #page-title {
-    font-size: 1.2rem;
+    font-size: 1.12rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     color: var(--text-primary);
@@ -367,17 +367,17 @@ body {
 }
 
 .search-box input {
-    padding: 8px 12px 8px 36px;
+    padding: 7px 10px 7px 32px;
     border: 1.5px solid #e2e8f0;
     border-radius: 999px;
-    width: clamp(160px, 16vw, 230px);
-    font-size: 0.84rem;
+    width: clamp(130px, 12vw, 185px);
+    font-size: 0.8rem;
     background: #f8fafc;
     transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .search-box input:focus {
-    width: clamp(190px, 20vw, 270px);
+    width: clamp(160px, 16vw, 230px);
     border-color: var(--primary);
     background: #ffffff;
     outline: none;
@@ -413,7 +413,7 @@ body {
 .header-info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: nowrap;
 }
 
@@ -423,7 +423,31 @@ body {
     flex-shrink: 0;
     position: relative;
     overflow: hidden;
+    padding: 5px 9px !important;
+    font-size: 0.72rem !important;
     transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.btn-logout-pill {
+    background: rgba(244, 63, 94, 0.14) !important;
+    border: 1px solid rgba(244, 63, 94, 0.38) !important;
+    color: #f43f5e !important;
+    border-radius: 10px !important;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.btn-logout-pill:hover {
+    background: #f43f5e !important;
+    color: #ffffff !important;
+}
+
+@media (max-width: 1360px) {
+    #btn-change-password span,
+    #db-status {
+        display: none !important;
+    }
 }
 
 @media (prefers-reduced-motion: no-preference) {

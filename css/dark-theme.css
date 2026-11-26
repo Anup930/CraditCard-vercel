@@ -663,4 +663,41 @@ html[data-theme="dark"] .gr-txt-rose    { color: #fda4af; }
 html[data-theme="dark"] .gr-txt-emerald { color: #6ee7b7; }
 html[data-theme="dark"] .gr-txt-indigo  { color: #a5b4fc; }
 
+/* ── Premium Suite in Dark Mode ─────────────────────────────── */
+html[data-theme="dark"] .ps-notif-popover,
+html[data-theme="dark"] .ps-opt-card {
+    background: #0f172a;
+    border-color: #1e293b;
+    color: #f1f5f9;
+}
+
+html[data-theme="dark"] .ps-notif-head {
+    background: #131c31;
+    border-bottom-color: #1e293b;
+}
+
+html[data-theme="dark"] .ps-notif-item,
+html[data-theme="dark"] .ps-cal-cell,
+html[data-theme="dark"] .ps-ins-row {
+    background: #131c31;
+    border-color: #1e293b;
+    color: #e2e8f0;
+}
+
+html[data-theme="dark"] .ps-notif-item:hover {
+    background: rgba(67, 97, 238, 0.22);
+}
+
+html[data-theme="dark"] .ps-notif-body,
+html[data-theme="dark"] .ps-cal-day,
+html[data-theme="dark"] .ps-opt-name {
+    color: #f8fafc;
+}
+
+html[data-theme="dark"] .ps-cal-cell.is-selected {
+    background: rgba(67, 97, 238, 0.24);
+    border-color: #6366f1;
+}
+
+
 
