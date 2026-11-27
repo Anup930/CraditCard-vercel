@@ -554,6 +554,7 @@ window.App = {
             smartsuite:   'Smart Suite',
             hygiene:      'Data Hygiene',
             downlodedash: 'Downlode Dashboard',
+            bankbalance:  'Bank Balance Intelligence',
             users:        'User Management',
             logs:         'Activity Logs'
         };
@@ -578,6 +579,7 @@ window.App = {
             case 'smartsuite':   if (window.PremiumSuite  && PremiumSuite.render)  PremiumSuite.render(content);  break;
             case 'hygiene':      if (window.Reports       && Reports.renderHygiene) Reports.renderHygiene(content); break;
             case 'downlodedash': if (window.DownlodeDash  && DownlodeDash.render)  DownlodeDash.render(content);  break;
+            case 'bankbalance':  if (window.BankBalance   && BankBalance.render)   BankBalance.render(content);   break;
             case 'users':        if (window.Users         && Users.render)         Users.render(content);         break;
             case 'logs':         if (window.Logs          && Logs.render)          Logs.render(content);          break;
             default:
@@ -586,6 +588,55 @@ window.App = {
 
         this.updateCardCount();
         document.body.classList.remove('sidebar-open');
+        this._syncAppSwitcherUI(page === 'bankbalance' ? 'bankbalance' : 'ccms');
+    },
+
+    toggleAppSwitcher(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('ccms-app-switcher');
+        if (!menu) return;
+        const willOpen = menu.classList.contains('hidden');
+        menu.classList.toggle('hidden', !willOpen);
+        if (willOpen && !this._switcherOutsideBound) {
+            this._switcherOutsideBound = true;
+            document.addEventListener('click', () => {
+                const m = document.getElementById('ccms-app-switcher');
+                if (m) m.classList.add('hidden');
+            });
+        }
+    },
+
+    switchApp(appKey) {
+        const menu = document.getElementById('ccms-app-switcher');
+        if (menu) menu.classList.add('hidden');
+        if (appKey === 'bankbalance') {
+            this.navigate('bankbalance');
+        } else {
+            this.navigate('dashboard');
+        }
+    },
+
+    _syncAppSwitcherUI(appKey) {
+        const logo = document.getElementById('sidebar-app-logo');
+        const title = document.getElementById('sidebar-app-title');
+        if (logo) {
+            logo.innerHTML = appKey === 'bankbalance'
+                ? '<i class="fas fa-landmark"></i>'
+                : '<i class="fas fa-credit-card"></i>';
+            logo.style.background = appKey === 'bankbalance'
+                ? 'linear-gradient(135deg, #059669 0%, #0ea5e9 100%)'
+                : '';
+        }
+        if (title) title.textContent = appKey === 'bankbalance' ? 'BANK' : 'CCMS';
+        document.querySelectorAll('#ccms-app-switcher .ccms-switcher-item').forEach(btn => {
+            const isAct = btn.dataset.app === appKey;
+            btn.classList.toggle('active', isAct);
+            const badge = btn.querySelector('.ccms-switcher-badge');
+            if (badge) {
+                badge.textContent = isAct ? 'Active' : (btn.dataset.app === 'bankbalance' ? 'Bank' : 'CC');
+                badge.className = `ccms-switcher-badge ${isAct ? 'active' : 'new'}`;
+            }
+        });
     },
 
     applyTheme(theme) {
