@@ -6,8 +6,12 @@
 
 window.BankBalance = {
     _records: [],
+    _kycRecords: [],
+    _kycMeta: { count: 0, syncedAt: '' },
+    _kycFilters: { search: '', bank: 'ALL', status: 'ALL', window: 'ALL' },
     _meta: { importAt: '', updatedTill: '', source: 'DB/Bank Data/Book3.xlsx' },
-    _view: 'snap', // 'snap' | 'charts' | 'pivot' | 'table'
+    _view: 'snap', // 'snap' | 'exec' | 'charts' | 'pivot' | 'table' | 'kyc'
+    _execChartMode: false,
     _pivotBy: 'gretex_report', // 'gretex_report' | 'entity' | 'bank' | 'software' | 'entity_bank'
     _filters: { search: '', entity: 'ALL', bank: 'ALL', software: 'ALL', status: 'ALL' },
     _sort: { key: 'bankBal', dir: 'desc' },
@@ -193,11 +197,21 @@ window.BankBalance = {
         // Check if user uploaded a custom file cached in IndexedDB (avoids 5MB localStorage quota)
         if (!forceReload) {
             try {
+                const kycCached = await this._idbOp('readonly', (store, resolve) => {
+                    const req = store.get('kyc_latest');
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = () => resolve(null);
+                });
+                if (kycCached && Array.isArray(kycCached.records)) {
+                    this._kycRecords = kycCached.records;
+                    this._kycMeta = kycCached.meta || this._kycMeta;
+                }
                 const parsed = await this._loadCache();
                 if (parsed && Array.isArray(parsed.records) && parsed.records.length) {
                     this._records = parsed.records;
                     this._meta = parsed.meta || this._meta;
                     this._loaded = true;
+                    if (!this._kycRecords.length) this.syncKycSheet(true);
                     return;
                 }
             } catch (e) {}
@@ -211,9 +225,59 @@ window.BankBalance = {
                 if (res.ok) {
                     const buf = await res.arrayBuffer();
                     this._parseWorkbookBuffer(buf, 'DB/Bank Data/Book3.xlsx');
+                    if (!this._kycRecords.length) this.syncKycSheet(true);
                     return;
                 }
             } catch (e) {}
+        }
+    },
+
+    async syncKycSheet(silent = false) {
+        if (!window.DB || typeof window.DB.apiGet !== 'function') return;
+        const tabName = localStorage.getItem('ccms_bank_kyc_tab') || 'Bank KYC Update';
+        try {
+            if (!silent && window.App) App.showToast(`Syncing "${tabName}" from Google Sheets...`, 'info');
+            const res = await window.DB.apiGet({ action: 'getAll', sheet: tabName });
+            if (res && res.error) throw new Error(res.error);
+            const rows = Array.isArray(res) ? res : (res && Array.isArray(res.data) ? res.data : []);
+            if (!rows.length) {
+                if (!silent && window.App) App.showToast(`No rows found in "${tabName}"`, 'warning');
+                return;
+            }
+            const mapped = rows.map(obj => {
+                const get = (keys) => {
+                    for (const k of keys) {
+                        if (obj[k] !== undefined && obj[k] !== '') return obj[k];
+                    }
+                    return '';
+                };
+                const holder = String(get(['account_holder_name', 'Account Holder Name', 'Name of Account Holder']) || '').trim();
+                const bank = String(get(['bank_name', 'Bank Name']) || '').trim().toUpperCase();
+                return {
+                    holder,
+                    accountNo: String(get(['account_number', 'Account Number', 'Bank Account Number']) || '').trim(),
+                    customerId: String(get(['customer_id', 'Customer ID']) || '').trim(),
+                    bank: bank || 'UNKNOWN',
+                    lastYearUpdate: String(get(['last_year_update', 'Last Year Update']) || '').trim(),
+                    upcomingUpdate: String(get(['upcoming_update', 'Upcoming Update', 'Next KYC Date']) || '').trim(),
+                    kycStatus: String(get(['kyc_status', 'KYC Status']) || '').trim() || 'Valid',
+                    remarks: String(get(['remarks', 'Remarks']) || '').trim(),
+                    receipt: String(get(['receipt', 'Receipt']) || '').trim(),
+                    status: String(get(['status', 'Status']) || '').trim() || 'Updated'
+                };
+            }).filter(r => r.holder || r.accountNo);
+
+            this._kycRecords = mapped;
+            this._kycMeta = { count: mapped.length, syncedAt: new Date().toLocaleString('en-IN'), source: `Google Sheet (${tabName})` };
+            await this._idbOp('readwrite', (store, resolve) => {
+                const req = store.put({ records: mapped, meta: this._kycMeta }, 'kyc_latest');
+                req.onsuccess = () => resolve(true);
+                req.onerror = () => resolve(false);
+            });
+            if (!silent && window.App) App.showToast(`Synced ${mapped.length} KYC records from "${tabName}"!`, 'success');
+            if (this._view === 'kyc' || this._view === 'pivot') this._renderCurrent();
+        } catch (err) {
+            if (!silent && window.App) App.showToast('KYC Sheet Sync: ' + err.message, 'warning');
         }
     },
 
@@ -276,6 +340,20 @@ window.BankBalance = {
     },
 
     _uploadState: null,
+    _uploadMode: 'balance', // 'balance' | 'kyc'
+
+    _kycFieldDefs: [
+        { key: 'holder',         label: 'Account Holder Name *', keywords: ['account holder name', 'account holder', 'holder', 'name'], required: true },
+        { key: 'accountNo',      label: 'Account Number',        keywords: ['account number', 'account no', 'a/c', 'acc no'] },
+        { key: 'customerId',     label: 'Customer ID',           keywords: ['customer id', 'cust id', 'cif'] },
+        { key: 'bank',           label: 'Bank Name *',           keywords: ['bank name', 'bank'], required: true },
+        { key: 'lastYearUpdate', label: 'Last Year Update',      keywords: ['last year update', 'last year', 'last update'] },
+        { key: 'upcomingUpdate', label: 'Upcoming Update *',     keywords: ['upcoming update', 'upcoming', 'next kyc', 'due date'], required: true },
+        { key: 'kycStatus',      label: 'KYC Status',            keywords: ['kyc status'] },
+        { key: 'remarks',        label: 'Remarks',               keywords: ['remarks', 'remark', 'notes'] },
+        { key: 'receipt',        label: 'Receipt',               keywords: ['receipt', 'doc', 'path', 'link'] },
+        { key: 'status',         label: 'Status',                keywords: ['status'] }
+    ],
 
     _fieldDefs: [
         { key: 'shortCode',    label: 'Short Code',                  keywords: ['short code', 'shortcode', 'code', 'entity'] },
@@ -306,10 +384,11 @@ window.BankBalance = {
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     },
 
-    _detectHeaderAndMeta: function(rows) {
+    _detectHeaderAndMeta: function(rows, defs) {
         let bestIdx = 0;
         let bestScore = -1;
         let detectedUpdatedTill = null;
+        const fields = defs || this._fieldDefs;
 
         for (let i = 0; i < Math.min(rows.length, 15); i++) {
             const r = rows[i] || [];
@@ -319,7 +398,7 @@ window.BankBalance = {
                 detectedUpdatedTill = rows[i + 1][2] || rows[i + 1][1] || rows[i + 1][0];
             }
             let score = 0;
-            this._fieldDefs.forEach(fd => {
+            fields.forEach(fd => {
                 if (cells.some(c => c && fd.keywords.some(kw => c.includes(kw)))) score += 1;
             });
             if (score > bestScore) {
@@ -330,11 +409,12 @@ window.BankBalance = {
         return { headerIdx: bestIdx, detectedUpdatedTill };
     },
 
-    _autoMapColumns: function(headers) {
+    _autoMapColumns: function(headers, defs) {
         const lower = headers.map(h => String(h || '').trim().toLowerCase());
         const mapping = {};
         const used = new Set();
-        this._fieldDefs.forEach(fd => {
+        const fields = defs || this._fieldDefs;
+        fields.forEach(fd => {
             let matched = -1;
             for (const kw of fd.keywords) {
                 const idx = lower.findIndex((h, i) => !used.has(i) && h && h.includes(kw));
@@ -347,6 +427,36 @@ window.BankBalance = {
     },
 
     triggerExcelUpload() {
+        if (!window.App) return;
+        const html = `
+            <div style="display:flex;flex-direction:column;gap:14px;">
+                <div style="font-size:0.86rem;opacity:0.85;">
+                    Select which Excel / CSV file you want to upload &amp; smart-map:
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <button type="button" class="bb-card" style="text-align:left;cursor:pointer;border:2px solid rgba(79,70,229,0.45);transition:transform 0.15s;" onclick="BankBalance._pickUploadFile('balance')" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                            <span class="ccms-switcher-icon bank"><i class="fas fa-landmark"></i></span>
+                            <strong style="font-size:0.95rem;">Bank Balance Data</strong>
+                        </div>
+                        <div style="font-size:0.75rem;opacity:0.75;">Account balances, Comfort Level, Excess / Low, Recon Diff &rarr; <code>Bank Data</code></div>
+                    </button>
+                    <button type="button" class="bb-card" style="text-align:left;cursor:pointer;border:2px solid rgba(14,165,233,0.45);transition:transform 0.15s;" onclick="BankBalance._pickUploadFile('kyc')" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                            <span class="ccms-switcher-icon cc"><i class="fas fa-id-card-clip"></i></span>
+                            <strong style="font-size:0.95rem;">Bank KYC Update</strong>
+                        </div>
+                        <div style="font-size:0.75rem;opacity:0.75;">Customer ID, Last Year &amp; Upcoming KYC, KYC Status, Receipt &rarr; <code>Bank KYC Update</code></div>
+                    </button>
+                </div>
+            </div>
+        `;
+        App.showModal('Kya Upload Karna Hai? (Select File Type)', html);
+    },
+
+    _pickUploadFile(mode) {
+        this._uploadMode = mode === 'kyc' ? 'kyc' : 'balance';
+        if (window.App) App.closeModal();
         let inp = document.getElementById('bb-excel-input');
         if (!inp) {
             inp = document.createElement('input');
@@ -373,21 +483,27 @@ window.BankBalance = {
     },
 
     _openSmartUploadModal(wb, fileName) {
+        const mode = this._uploadMode || 'balance';
+        const defs = mode === 'kyc' ? this._kycFieldDefs : this._fieldDefs;
         const sheetName = wb.SheetNames[0];
         const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' });
-        const { headerIdx, detectedUpdatedTill } = this._detectHeaderAndMeta(rows);
+        const { headerIdx, detectedUpdatedTill } = this._detectHeaderAndMeta(rows, defs);
         const headers = rows[headerIdx] || [];
 
         this._uploadState = {
+            mode,
+            defs,
             wb,
             fileName,
             sheetName,
             rows,
             headerIdx,
             updatedTillVal: this._toDatetimeLocalValue(detectedUpdatedTill),
-            targetSheetTab: localStorage.getItem('ccms_bank_sheet_tab') || 'Bank Data',
+            targetSheetTab: mode === 'kyc'
+                ? (localStorage.getItem('ccms_bank_kyc_tab') || 'Bank KYC Update')
+                : (localStorage.getItem('ccms_bank_sheet_tab') || 'Bank Data'),
             pushToSheet: true,
-            mapping: this._autoMapColumns(headers)
+            mapping: this._autoMapColumns(headers, defs)
         };
         this._renderSmartUploadModal();
     },
@@ -398,14 +514,14 @@ window.BankBalance = {
         if (newSheet && newSheet !== st.sheetName) {
             st.sheetName = newSheet;
             st.rows = window.XLSX.utils.sheet_to_json(st.wb.Sheets[newSheet], { header: 1, defval: '' });
-            const det = this._detectHeaderAndMeta(st.rows);
+            const det = this._detectHeaderAndMeta(st.rows, st.defs);
             st.headerIdx = det.headerIdx;
             if (det.detectedUpdatedTill) st.updatedTillVal = this._toDatetimeLocalValue(det.detectedUpdatedTill);
         } else if (typeof newHeaderIdx === 'number' && newHeaderIdx >= 0) {
             st.headerIdx = newHeaderIdx;
         }
         const headers = st.rows[st.headerIdx] || [];
-        st.mapping = this._autoMapColumns(headers);
+        st.mapping = this._autoMapColumns(headers, st.defs);
         this._renderSmartUploadModal();
     },
 
@@ -424,12 +540,46 @@ window.BankBalance = {
 
         const mappedCount = Object.values(st.mapping).filter(v => v >= 0).length;
         const previewRows = st.rows.slice(st.headerIdx + 1, st.headerIdx + 4);
+        const isKyc = st.mode === 'kyc';
+        const defs = st.defs || this._fieldDefs;
+
+        const previewHtml = isKyc
+            ? `<table class="bb-table">
+                    <thead><tr><th>Holder</th><th>Bank</th><th>Customer ID</th><th>Upcoming</th><th>KYC Status</th><th>Status</th></tr></thead>
+                    <tbody>
+                        ${previewRows.map(r => `
+                            <tr>
+                                <td>${this._esc(st.mapping.holder >= 0 ? r[st.mapping.holder] : '—')}</td>
+                                <td>${this._esc(st.mapping.bank >= 0 ? r[st.mapping.bank] : '—')}</td>
+                                <td>${this._esc(st.mapping.customerId >= 0 ? r[st.mapping.customerId] : '—')}</td>
+                                <td>${this._esc(st.mapping.upcomingUpdate >= 0 ? r[st.mapping.upcomingUpdate] : '—')}</td>
+                                <td>${this._esc(st.mapping.kycStatus >= 0 ? r[st.mapping.kycStatus] : '—')}</td>
+                                <td>${this._esc(st.mapping.status >= 0 ? r[st.mapping.status] : '—')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`
+            : `<table class="bb-table">
+                    <thead><tr><th>Code</th><th>Holder</th><th>Bank</th><th>Software</th><th class="num">Books Bal</th><th class="num">Bank Bal</th></tr></thead>
+                    <tbody>
+                        ${previewRows.map(r => `
+                            <tr>
+                                <td>${this._esc(st.mapping.shortCode >= 0 ? r[st.mapping.shortCode] : '—')}</td>
+                                <td>${this._esc(st.mapping.holder >= 0 ? r[st.mapping.holder] : '—')}</td>
+                                <td>${this._esc(st.mapping.bank >= 0 ? r[st.mapping.bank] : '—')}</td>
+                                <td>${this._esc(st.mapping.software >= 0 ? r[st.mapping.software] : '—')}</td>
+                                <td class="num">${this._fmtINR(st.mapping.booksBal >= 0 ? this._num(r[st.mapping.booksBal]) : 0)}</td>
+                                <td class="num"><strong>${this._fmtINR(st.mapping.bankBal >= 0 ? this._num(r[st.mapping.bankBal]) : 0)}</strong></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`;
 
         const bodyHtml = `
             <div style="display:flex;flex-direction:column;gap:14px;max-height:74vh;overflow-y:auto;padding-right:4px;">
                 <div style="background:linear-gradient(135deg,rgba(79,70,229,0.12),rgba(14,165,233,0.1));border:1px solid rgba(99,102,241,0.3);border-radius:12px;padding:12px 14px;">
                     <div style="font-size:0.82rem;font-weight:800;margin-bottom:8px;color:#4f46e5;">
-                        <i class="fas fa-clock"></i> File Kab Tak Ke Liye Updated Hai? (Bank Data Updated Till) *
+                        <i class="fas fa-clock"></i> File Kab Tak Ke Liye Updated Hai? (${isKyc ? 'KYC Data Updated Till' : 'Bank Data Updated Till'}) *
                     </div>
                     <div style="display:grid;grid-template-columns:1.2fr 0.9fr 0.55fr 1fr;gap:10px;align-items:end;">
                         <div>
@@ -448,7 +598,7 @@ window.BankBalance = {
                         </div>
                         <div>
                             <label style="font-size:0.72rem;font-weight:700;display:block;margin-bottom:4px;">Google Sheet Tab</label>
-                            <input type="text" id="bb-upload-gs-tab" class="bb-input" style="width:100%;min-width:0;" value="${this._esc(st.targetSheetTab)}" oninput="BankBalance._uploadState.targetSheetTab=this.value;" placeholder="Bank Data">
+                            <input type="text" id="bb-upload-gs-tab" class="bb-input" style="width:100%;min-width:0;" value="${this._esc(st.targetSheetTab)}" oninput="BankBalance._uploadState.targetSheetTab=this.value;" placeholder="${isKyc ? 'Bank KYC Update' : 'Bank Data'}">
                         </div>
                     </div>
                     <label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:0.76rem;font-weight:700;cursor:pointer;">
@@ -459,7 +609,7 @@ window.BankBalance = {
 
                 <div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                        <strong style="font-size:0.84rem;"><i class="fas fa-wand-magic-sparkles text-primary"></i> Smart Column Mapping (${mappedCount}/${this._fieldDefs.length} Matched)</strong>
+                        <strong style="font-size:0.84rem;"><i class="fas fa-wand-magic-sparkles text-primary"></i> Smart Column Mapping (${mappedCount}/${defs.length} Matched)</strong>
                         <span style="font-size:0.72rem;opacity:0.75;">File: ${this._esc(st.fileName)} &bull; ${Math.max(0, st.rows.length - st.headerIdx - 1)} rows</span>
                     </div>
                     <div class="bb-table-wrap" style="max-height:240px;">
@@ -472,7 +622,7 @@ window.BankBalance = {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${this._fieldDefs.map(fd => {
+                                ${defs.map(fd => {
                                     const sel = st.mapping[fd.key] ?? -1;
                                     return `
                                         <tr>
@@ -492,34 +642,18 @@ window.BankBalance = {
 
                 <div>
                     <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px;"><i class="fas fa-eye"></i> Live Mapped Preview (First 3 Rows)</div>
-                    <div class="bb-table-wrap">
-                        <table class="bb-table">
-                            <thead><tr><th>Code</th><th>Holder</th><th>Bank</th><th>Software</th><th class="num">Books Bal</th><th class="num">Bank Bal</th></tr></thead>
-                            <tbody>
-                                ${previewRows.map(r => `
-                                    <tr>
-                                        <td>${this._esc(st.mapping.shortCode >= 0 ? r[st.mapping.shortCode] : '—')}</td>
-                                        <td>${this._esc(st.mapping.holder >= 0 ? r[st.mapping.holder] : '—')}</td>
-                                        <td>${this._esc(st.mapping.bank >= 0 ? r[st.mapping.bank] : '—')}</td>
-                                        <td>${this._esc(st.mapping.software >= 0 ? r[st.mapping.software] : '—')}</td>
-                                        <td class="num">${this._fmtINR(st.mapping.booksBal >= 0 ? this._num(r[st.mapping.booksBal]) : 0)}</td>
-                                        <td class="num"><strong>${this._fmtINR(st.mapping.bankBal >= 0 ? this._num(r[st.mapping.bankBal]) : 0)}</strong></td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                    <div class="bb-table-wrap">${previewHtml}</div>
                 </div>
 
                 <div style="display:flex;justify-content:flex-end;gap:10px;padding-top:6px;">
                     <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
                     <button type="button" class="btn btn-primary" onclick="BankBalance._confirmSmartUpload()">
-                        <i class="fas fa-check-circle"></i> Import &amp; Apply Bank Data
+                        <i class="fas fa-check-circle"></i> Import &amp; Apply ${isKyc ? 'Bank KYC Data' : 'Bank Data'}
                     </button>
                 </div>
             </div>
         `;
-        App.showModal('Smart Bank Data Upload & Mapping', bodyHtml);
+        App.showModal(isKyc ? 'Smart Bank KYC Upload & Mapping' : 'Smart Bank Data Upload & Mapping', bodyHtml);
     },
 
     async _confirmSmartUpload() {
@@ -533,6 +667,79 @@ window.BankBalance = {
         const m = st.mapping;
         if (m.holder < 0 && m.bank < 0) {
             if (window.App) App.showToast('Please map at least Account Holder or Bank Name!', 'warning');
+            return;
+        }
+
+        const formattedTill = new Date(inpVal).toLocaleString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: true
+        });
+        const importAtStr = new Date().toLocaleString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: true
+        });
+
+        if (st.mode === 'kyc') {
+            const kycOut = [];
+            for (let i = st.headerIdx + 1; i < st.rows.length; i++) {
+                const r = st.rows[i] || [];
+                const holder = m.holder >= 0 ? String(r[m.holder] ?? '').trim() : '';
+                const accountNo = m.accountNo >= 0 ? String(r[m.accountNo] ?? '').trim() : '';
+                if (!holder && !accountNo) continue;
+                kycOut.push({
+                    holder: holder || 'Unknown',
+                    accountNo,
+                    customerId: m.customerId >= 0 ? String(r[m.customerId] ?? '').trim() : '',
+                    bank: ((m.bank >= 0 ? String(r[m.bank] ?? '').trim() : '') || 'UNKNOWN').toUpperCase(),
+                    lastYearUpdate: m.lastYearUpdate >= 0 ? String(r[m.lastYearUpdate] ?? '').trim() : '',
+                    upcomingUpdate: m.upcomingUpdate >= 0 ? String(r[m.upcomingUpdate] ?? '').trim() : '',
+                    kycStatus: (m.kycStatus >= 0 ? String(r[m.kycStatus] ?? '').trim() : '') || 'Valid',
+                    remarks: m.remarks >= 0 ? String(r[m.remarks] ?? '').trim() : '',
+                    receipt: m.receipt >= 0 ? String(r[m.receipt] ?? '').trim() : '',
+                    status: (m.status >= 0 ? String(r[m.status] ?? '').trim() : '') || 'Updated'
+                });
+            }
+            if (!kycOut.length) {
+                if (window.App) App.showToast('No valid KYC rows found with current mapping!', 'error');
+                return;
+            }
+            const targetTab = (document.getElementById('bb-upload-gs-tab')?.value || st.targetSheetTab || 'Bank KYC Update').trim();
+            try { localStorage.setItem('ccms_bank_kyc_tab', targetTab); } catch (e) {}
+
+            this._kycRecords = kycOut;
+            this._kycMeta = { count: kycOut.length, syncedAt: formattedTill, source: st.fileName };
+            await this._idbOp('readwrite', (store, resolve) => {
+                const req = store.put({ records: kycOut, meta: this._kycMeta }, 'kyc_latest');
+                req.onsuccess = () => resolve(true);
+                req.onerror = () => resolve(false);
+            });
+            this._view = 'kyc';
+            if (window.App) App.closeModal();
+            this._renderCurrent();
+
+            if (st.pushToSheet && window.DB && typeof window.DB.apiPost === 'function') {
+                try {
+                    if (window.App) App.showToast(`Uploading ${kycOut.length} KYC rows to "${targetTab}"...`, 'info');
+                    const res = await window.DB.apiPost({ action: 'saveBankKycData', sheet: targetTab, records: kycOut });
+                    if (res && res.success) {
+                        this._kycMeta.source = `${st.fileName} → Google Sheet (${res.sheet})`;
+                        await this._idbOp('readwrite', (store, resolve) => {
+                            const req = store.put({ records: kycOut, meta: this._kycMeta }, 'kyc_latest');
+                            req.onsuccess = () => resolve(true);
+                            req.onerror = () => resolve(false);
+                        });
+                        this._renderCurrent();
+                        if (window.App) App.showToast(`Saved ${res.saved} KYC rows to Google Sheet "${res.sheet}"!`, 'success');
+                    } else if (window.App) {
+                        App.showToast(`Google Sheet KYC sync error: ${res?.error || 'Deploy updated App Script/code.gs'}`, 'warning');
+                    }
+                } catch (err) {
+                    if (window.App) App.showToast(`Google Sheet KYC sync failed: ${err.message}`, 'warning');
+                }
+            } else if (window.App) {
+                App.showToast(`Imported ${kycOut.length} KYC records locally!`, 'success');
+            }
+            this._uploadState = null;
             return;
         }
 
@@ -568,15 +775,6 @@ window.BankBalance = {
             if (window.App) App.showToast('No valid bank rows found with current mapping!', 'error');
             return;
         }
-
-        const formattedTill = new Date(inpVal).toLocaleString('en-IN', {
-            day: '2-digit', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit', hour12: true
-        });
-        const importAtStr = new Date().toLocaleString('en-IN', {
-            day: '2-digit', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit', hour12: true
-        });
         const targetTab = (document.getElementById('bb-upload-gs-tab')?.value || st.targetSheetTab || 'Bank Data').trim();
         try { localStorage.setItem('ccms_bank_sheet_tab', targetTab); } catch (e) {}
 
@@ -790,8 +988,10 @@ window.BankBalance = {
                     <div class="bb-hero-actions">
                         <div class="bb-tabs">
                             <button class="bb-tab-btn ${view === 'snap' ? 'active' : ''}" onclick="BankBalance.setView('snap')"><i class="fas fa-bolt"></i> Single Snap</button>
+                            <button class="bb-tab-btn ${view === 'exec' ? 'active' : ''}" onclick="BankBalance.setView('exec')"><i class="fas fa-file-invoice-dollar"></i> Bank Report</button>
                             <button class="bb-tab-btn ${view === 'charts' ? 'active' : ''}" onclick="BankBalance.setView('charts')"><i class="fas fa-chart-pie"></i> Charts</button>
                             <button class="bb-tab-btn ${view === 'pivot' ? 'active' : ''}" onclick="BankBalance.setView('pivot')"><i class="fas fa-table-cells"></i> Pivot</button>
+                            <button class="bb-tab-btn ${view === 'kyc' ? 'active' : ''}" onclick="BankBalance.setView('kyc')"><i class="fas fa-id-card-clip"></i> KYC Status${this._kycRecords.length ? ` (${this._kycRecords.length})` : ''}</button>
                             <button class="bb-tab-btn ${view === 'table' ? 'active' : ''}" onclick="BankBalance.setView('table')"><i class="fas fa-list"></i> Table</button>
                         </div>
                         <button class="bb-action-btn" onclick="BankBalance.downloadSnapJPG()" title="Download Single Snap JPG"><i class="fas fa-camera"></i> Snap JPG</button>
@@ -840,9 +1040,458 @@ window.BankBalance = {
         container.innerHTML = html;
         const body = document.getElementById('bb-view-body');
         if (view === 'snap') this._renderSnapView(body);
+        else if (view === 'exec') this._renderExecReportView(body);
         else if (view === 'charts') this._renderChartsView(body);
         else if (view === 'pivot') this._renderPivotView(body);
+        else if (view === 'kyc') this._renderKycView(body);
         else this._renderTableView(body);
+    },
+
+    _buildExecReportData() {
+        const excessAll = this._records.filter(r => r.excessBal > 0);
+        const shortAll = this._records.filter(r => Math.abs(r.lowBal) > 0.01);
+        const reconAll = this._records.filter(r => Math.abs(r.reconDiff) > 0.01);
+        const otherAll = this._records.filter(r => r.excessBal <= 0 && Math.abs(r.lowBal) <= 0.01);
+
+        const groupByBank = (list, sortField) => {
+            const m = new Map();
+            list.forEach(r => {
+                const k = `${r.holder} • ${r.bank}`;
+                if (!m.has(k)) m.set(k, { label: k, holder: r.holder, bank: r.bank, count: 0, bankBal: 0, booksBal: 0, minBal: 0, excess: 0, low: 0, recon: 0 });
+                const g = m.get(k);
+                g.count += 1;
+                g.bankBal += r.bankBal;
+                g.booksBal += r.booksBal;
+                g.minBal += r.minBal;
+                g.excess += r.excessBal;
+                g.low += r.lowBal;
+                g.recon += r.reconDiff;
+            });
+            return Array.from(m.values()).sort((a, b) => Math.abs(b[sortField]) - Math.abs(a[sortField]));
+        };
+
+        const excessTop5 = groupByBank(excessAll, 'excess').slice(0, 5);
+        const shortTop5 = groupByBank(shortAll, 'low').slice(0, 5);
+        const reconGrouped = groupByBank(reconAll, 'recon');
+        const otherGrouped = groupByBank(otherAll, 'bankBal').slice(0, 8);
+
+        // 5. KYC Updation List (updated in last 10 months, total A/Cs, pending for KYC)
+        const kycAll = this._getEffectiveKycRows();
+        const now = new Date();
+        const tenMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 10, now.getDate());
+        const updatedLast10M = kycAll.filter(r => {
+            const d = this._parseKycDate(r.lastYearUpdate);
+            if (d) return d >= tenMonthsAgo && d <= now;
+            return /^updated$/i.test(String(r.status || '').trim());
+        }).length;
+        const pendingKyc = kycAll.filter(r => r.bucket === 'PENDING' || r.bucket === 'DUE_30' || r.bucket === 'DUE_60').length;
+
+        return {
+            excess: { count: excessAll.length, totalBal: excessAll.reduce((s, r) => s + r.bankBal, 0), excessBal: excessAll.reduce((s, r) => s + r.excessBal, 0), top5: excessTop5 },
+            short:  { count: shortAll.length, totalBal: shortAll.reduce((s, r) => s + r.bankBal, 0), shortBal: shortAll.reduce((s, r) => s + r.lowBal, 0), top5: shortTop5 },
+            recon:  { count: reconAll.length, booksBal: reconAll.reduce((s, r) => s + r.booksBal, 0), bankBal: reconAll.reduce((s, r) => s + r.bankBal, 0), diff: reconAll.reduce((s, r) => s + r.reconDiff, 0), rows: reconGrouped },
+            other:  { count: otherAll.length, totalBal: otherAll.reduce((s, r) => s + r.bankBal, 0), minBal: otherAll.reduce((s, r) => s + r.minBal, 0), netExcessShort: otherAll.reduce((s, r) => s + r.excessBal + r.lowBal, 0), rows: otherGrouped },
+            kyc:    { updatedLast10M, total: kycAll.length, pending: pendingKyc }
+        };
+    },
+
+    copyExecReportWhatsApp() {
+        const d = this._buildExecReportData();
+        const lines = [
+            `*A. BANK BALANCES — EXECUTIVE REPORT*`,
+            `Updated Till: ${this._meta.updatedTill}`,
+            ``,
+            `*1. Excess Balance* (${d.excess.count} A/Cs)`,
+            `• Total Balance: ${this._fmtINR(d.excess.totalBal)}`,
+            `• Excess Balance: ${this._fmtINR(d.excess.excessBal)}`,
+            `• Top 5: ${d.excess.top5.map(r => `${r.bank} (${r.holder.split(' ')[0]}): ${this._fmtCompact(r.excess)}`).join(' | ')}`,
+            ``,
+            `*2. Short Balance* (${d.short.count} A/Cs)`,
+            `• Total Balance: ${this._fmtINR(d.short.totalBal)}`,
+            `• Short Balance: ${this._fmtINR(d.short.shortBal)}`,
+            `• Top 5: ${d.short.top5.map(r => `${r.bank} (${r.holder.split(' ')[0]}): ${this._fmtCompact(r.low)}`).join(' | ')}`,
+            ``,
+            `*3. Reconciliation Difference* (${d.recon.count} A/Cs)`,
+            `• Books: ${this._fmtINR(d.recon.booksBal)} | Bank: ${this._fmtINR(d.recon.bankBal)} | Diff: ${this._fmtINR(d.recon.diff)}`,
+            ``,
+            `*4. Other A/Cs* (${d.other.count} A/Cs)`,
+            `• Total Balance: ${this._fmtINR(d.other.totalBal)} | Min Req: ${this._fmtINR(d.other.minBal)}`,
+            ``,
+            `*5. KYC Updation List*`,
+            `• Updated (Last 10M): ${d.kyc.updatedLast10M} | Total A/Cs: ${d.kyc.total} | Pending: ${d.kyc.pending}`
+        ];
+        navigator.clipboard?.writeText(lines.join('\n')).then(() => {
+            if (window.App) App.showToast('5-Section Bank Report copied for WhatsApp!', 'success');
+        }).catch(() => {});
+    },
+
+    exportExecReportExcel() {
+        if (!window.XLSX) return;
+        const d = this._buildExecReportData();
+        const wb = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet([
+            { Section: '1. Excess Balance', Accounts: d.excess.count, Total_Balance: d.excess.totalBal, Excess_or_Short: d.excess.excessBal },
+            { Section: '2. Short Balance', Accounts: d.short.count, Total_Balance: d.short.totalBal, Excess_or_Short: d.short.shortBal },
+            { Section: '3. Reconciliation Diff', Accounts: d.recon.count, Books_Balance: d.recon.booksBal, Bank_Balance: d.recon.bankBal, Difference: d.recon.diff },
+            { Section: '4. Other A/Cs', Accounts: d.other.count, Total_Balance: d.other.totalBal, Min_Bal_Required: d.other.minBal, Excess_or_Short: d.other.netExcessShort },
+            { Section: '5. KYC Updation List', Total_ACs: d.kyc.total, Updated_Last_10M: d.kyc.updatedLast10M, Pending_KYC: d.kyc.pending }
+        ]), 'Executive Summary');
+        window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(d.excess.top5), '1. Excess Top 5');
+        window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(d.short.top5), '2. Short Top 5');
+        window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(d.recon.rows), '3. Recon Diff');
+        const fname = `Executive_Bank_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        window.XLSX.writeFile(wb, fname);
+        if (window.App) App.showToast(`Exported ${fname}`, 'success');
+    },
+
+    toggleExecChartMode() {
+        this._execChartMode = !this._execChartMode;
+        this._renderCurrent();
+    },
+
+    _renderExecReportView(body) {
+        const d = this._buildExecReportData();
+        const isChart = !!this._execChartMode;
+
+        const bannerHtml = `
+            <div class="bb-gretex-banner">
+                <div>
+                    <div class="bb-gretex-title"><i class="fas fa-file-invoice-dollar"></i> A. BANK BALANCES — EXECUTIVE REPORTING STRUCTURE</div>
+                    <div class="bb-gretex-sub">All 5 Management Slots on Single Screen &bull; Updated Till: ${this._esc(this._meta.updatedTill)}</div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <button class="btn btn-sm ${isChart ? 'btn-warning' : 'btn-info'}" style="font-weight:700;" onclick="BankBalance.toggleExecChartMode()">
+                        <i class="fas fa-${isChart ? 'table' : 'chart-line'}"></i> ${isChart ? 'Table View' : 'Dynamic Charts'}
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="BankBalance.copyExecReportWhatsApp()"><i class="fab fa-whatsapp"></i> Copy Brief</button>
+                    <button class="btn btn-sm btn-success" onclick="BankBalance.exportExecReportExcel()"><i class="fas fa-file-excel"></i> Export 5-Slot Excel</button>
+                </div>
+            </div>
+        `;
+
+        if (isChart) {
+            body.innerHTML = bannerHtml + `
+                <div class="bb-gretex-grid" style="margin-bottom:14px;">
+                    <div class="bb-card">
+                        <div class="bb-card-head">
+                            <h4 class="bb-card-title"><i class="fas fa-arrow-trend-up text-success"></i> 1. Excess Balance (Top 5)</h4>
+                            <span class="bb-pill ok">${d.excess.count} A/Cs &bull; ${this._fmtCompact(d.excess.excessBal)}</span>
+                        </div>
+                        <div class="bb-chart-box" style="height:230px;"><canvas id="bb-exec-ch-excess"></canvas></div>
+                    </div>
+                    <div class="bb-card">
+                        <div class="bb-card-head">
+                            <h4 class="bb-card-title"><i class="fas fa-arrow-trend-down text-danger"></i> 2. Short Balance (Top 5)</h4>
+                            <span class="bb-pill bad">${d.short.count} A/Cs &bull; ${this._fmtCompact(d.short.shortBal)}</span>
+                        </div>
+                        <div class="bb-chart-box" style="height:230px;"><canvas id="bb-exec-ch-short"></canvas></div>
+                    </div>
+                </div>
+                <div class="bb-snap-grid">
+                    <div class="bb-card">
+                        <div class="bb-card-head">
+                            <h4 class="bb-card-title"><i class="fas fa-scale-unbalanced text-warning"></i> 3. Reconciliation Difference</h4>
+                            <span class="bb-pill warn">${d.recon.count} A/Cs &bull; ${this._fmtCompact(d.recon.diff)}</span>
+                        </div>
+                        <div class="bb-chart-box" style="height:230px;"><canvas id="bb-exec-ch-recon"></canvas></div>
+                    </div>
+                    <div class="bb-card">
+                        <div class="bb-card-head">
+                            <h4 class="bb-card-title"><i class="fas fa-layer-group text-info"></i> 4. Other A/Cs Polar Spread</h4>
+                            <span class="bb-pill info">${d.other.count} A/Cs &bull; ${this._fmtCompact(d.other.totalBal)}</span>
+                        </div>
+                        <div class="bb-chart-box" style="height:230px;"><canvas id="bb-exec-ch-other"></canvas></div>
+                    </div>
+                    <div class="bb-card">
+                        <div class="bb-card-head">
+                            <h4 class="bb-card-title"><i class="fas fa-id-card-clip text-primary"></i> 5. KYC Compliance Gauge</h4>
+                            <span class="bb-pill info">${d.kyc.total} Total A/Cs</span>
+                        </div>
+                        <div class="bb-chart-box" style="height:230px;"><canvas id="bb-exec-ch-kyc"></canvas></div>
+                    </div>
+                </div>
+            `;
+            this._renderExecCharts(d);
+            return;
+        }
+
+        body.innerHTML = bannerHtml + `
+
+            <div class="bb-gretex-grid" style="margin-bottom:14px;">
+                <!-- 1. EXCESS BALANCE (TOP 5) -->
+                <div class="bb-card">
+                    <div class="bb-card-head">
+                        <h4 class="bb-card-title"><i class="fas fa-arrow-trend-up text-success"></i> 1. Excess Balance (Top 5 Banks)</h4>
+                        <span class="bb-pill ok">Total A/Cs: ${d.excess.count}</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+                        <div class="era-telemetry-stat" style="background:rgba(16,185,129,0.1);border-color:rgba(16,185,129,0.3);"><div class="era-stat-label">a. No. of Accounts</div><div class="era-stat-val" style="color:inherit;">${d.excess.count}</div></div>
+                        <div class="era-telemetry-stat" style="background:rgba(16,185,129,0.1);border-color:rgba(16,185,129,0.3);"><div class="era-stat-label">b. Total Balance</div><div class="era-stat-val" style="color:inherit;">${this._fmtCompact(d.excess.totalBal)}</div></div>
+                        <div class="era-telemetry-stat" style="background:rgba(16,185,129,0.16);border-color:rgba(16,185,129,0.4);"><div class="era-stat-label">c. Excess Balance</div><div class="era-stat-val" style="color:#10b981;">${this._fmtCompact(d.excess.excessBal)}</div></div>
+                    </div>
+                    <div class="bb-table-wrap">
+                        <table class="bb-table">
+                            <thead><tr><th>Top 5 Bank / Account Holder</th><th class="num">A/C</th><th class="num">Total Bal</th><th class="num">Excess Bal</th></tr></thead>
+                            <tbody>
+                                ${d.excess.top5.map(r => `<tr><td><strong>${this._esc(r.bank)}</strong> &bull; ${this._esc(r.holder)}</td><td class="num">${r.count}</td><td class="num">${this._fmtINR(r.bankBal)}</td><td class="num"><span class="bb-pill ok">${this._fmtINR(r.excess)}</span></td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center;">No excess balance</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 2. SHORT BALANCE (TOP 5) -->
+                <div class="bb-card">
+                    <div class="bb-card-head">
+                        <h4 class="bb-card-title"><i class="fas fa-arrow-trend-down text-danger"></i> 2. Short Balance (Top 5 Banks)</h4>
+                        <span class="bb-pill bad">Total A/Cs: ${d.short.count}</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+                        <div class="era-telemetry-stat" style="background:rgba(244,63,94,0.1);border-color:rgba(244,63,94,0.3);"><div class="era-stat-label">a. No. of Accounts</div><div class="era-stat-val" style="color:inherit;">${d.short.count}</div></div>
+                        <div class="era-telemetry-stat" style="background:rgba(244,63,94,0.1);border-color:rgba(244,63,94,0.3);"><div class="era-stat-label">b. Total Balance</div><div class="era-stat-val" style="color:inherit;">${this._fmtCompact(d.short.totalBal)}</div></div>
+                        <div class="era-telemetry-stat" style="background:rgba(244,63,94,0.16);border-color:rgba(244,63,94,0.4);"><div class="era-stat-label">c. Short Balance</div><div class="era-stat-val" style="color:#f43f5e;">${this._fmtCompact(d.short.shortBal)}</div></div>
+                    </div>
+                    <div class="bb-table-wrap">
+                        <table class="bb-table">
+                            <thead><tr><th>Top 5 Bank / Account Holder</th><th class="num">A/C</th><th class="num">Total Bal</th><th class="num">Short Bal</th></tr></thead>
+                            <tbody>
+                                ${d.short.top5.map(r => `<tr><td><strong>${this._esc(r.bank)}</strong> &bull; ${this._esc(r.holder)}</td><td class="num">${r.count}</td><td class="num">${this._fmtINR(r.bankBal)}</td><td class="num"><span class="bb-pill bad">${this._fmtINR(r.low)}</span></td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center;">No short balance</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bb-snap-grid">
+                <!-- 3. RECONCILIATION DIFFERENCE -->
+                <div class="bb-card">
+                    <div class="bb-card-head">
+                        <h4 class="bb-card-title"><i class="fas fa-scale-unbalanced text-warning"></i> 3. Reconciliation Difference</h4>
+                        <span class="bb-pill warn">${d.recon.count} A/Cs</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                        <div class="era-telemetry-stat" style="background:rgba(245,158,11,0.09);border-color:rgba(245,158,11,0.28);"><div class="era-stat-label">b. Balance as per Books</div><div class="era-stat-val" style="color:inherit;">${this._fmtCompact(d.recon.booksBal)}</div></div>
+                        <div class="era-telemetry-stat" style="background:rgba(245,158,11,0.09);border-color:rgba(245,158,11,0.28);"><div class="era-stat-label">c. Balance as per Bank</div><div class="era-stat-val" style="color:inherit;">${this._fmtCompact(d.recon.bankBal)}</div></div>
+                    </div>
+                    <div class="era-telemetry-stat" style="background:rgba(245,158,11,0.16);border-color:rgba(245,158,11,0.4);margin-bottom:10px;">
+                        <div class="era-stat-label">d. Total Difference Amount (${d.recon.count} Accounts)</div>
+                        <div class="era-stat-val" style="color:#f59e0b;">${this._fmtINR(d.recon.diff)}</div>
+                    </div>
+                    <div class="bb-table-wrap" style="max-height:175px;">
+                        <table class="bb-table">
+                            <thead><tr><th>Bank / Entity</th><th class="num">A/C</th><th class="num">Difference</th></tr></thead>
+                            <tbody>
+                                ${d.recon.rows.slice(0, 6).map(r => `<tr><td><strong>${this._esc(r.bank)}</strong> &bull; ${this._esc(r.holder)}</td><td class="num">${r.count}</td><td class="num"><span class="bb-pill warn">${this._fmtCompact(r.recon)}</span></td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;">All reconciled!</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 4. OTHER A/Cs -->
+                <div class="bb-card">
+                    <div class="bb-card-head">
+                        <h4 class="bb-card-title"><i class="fas fa-layer-group text-info"></i> 4. Other A/Cs</h4>
+                        <span class="bb-pill info">${d.other.count} A/Cs</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                        <div class="era-telemetry-stat" style="background:rgba(14,165,233,0.09);border-color:rgba(14,165,233,0.28);"><div class="era-stat-label">a. No. of A/Cs</div><div class="era-stat-val" style="color:inherit;">${d.other.count}</div></div>
+                        <div class="era-telemetry-stat" style="background:rgba(14,165,233,0.09);border-color:rgba(14,165,233,0.28);"><div class="era-stat-label">b. Balance (Total)</div><div class="era-stat-val" style="color:inherit;">${this._fmtCompact(d.other.totalBal)}</div></div>
+                        <div class="era-telemetry-stat" style="background:rgba(14,165,233,0.09);border-color:rgba(14,165,233,0.28);"><div class="era-stat-label">c. Min Bal Required</div><div class="era-stat-val" style="color:inherit;">${this._fmtCompact(d.other.minBal)}</div></div>
+                        <div class="era-telemetry-stat" style="background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.3);"><div class="era-stat-label">d. Excess / Short Bal</div><div class="era-stat-val" style="color:#10b981;">${this._fmtCompact(d.other.netExcessShort)}</div></div>
+                    </div>
+                    <div class="bb-table-wrap" style="max-height:135px;">
+                        <table class="bb-table">
+                            <thead><tr><th>Entity / Bank</th><th class="num">A/C</th><th class="num">Balance</th></tr></thead>
+                            <tbody>
+                                ${d.other.rows.map(r => `<tr><td><strong>${this._esc(r.bank)}</strong> &bull; ${this._esc(r.holder)}</td><td class="num">${r.count}</td><td class="num">${this._fmtCompact(r.bankBal)}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 5. KYC UPDATION LIST -->
+                <div class="bb-card">
+                    <div class="bb-card-head">
+                        <h4 class="bb-card-title"><i class="fas fa-id-card-clip text-primary"></i> 5. KYC Updation List</h4>
+                        <button class="btn btn-sm btn-secondary" onclick="BankBalance.setView('kyc')">Open Full KYC &rarr;</button>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <div class="era-telemetry-stat" style="background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.35);display:flex;justify-content:space-between;align-items:center;">
+                            <div><div class="era-stat-label">a. Updated in Last 10 Months</div><div style="font-size:0.72rem;opacity:0.75;">Compliant &amp; Verified</div></div>
+                            <div class="era-stat-val" style="font-size:1.35rem;color:#10b981;">${d.kyc.updatedLast10M}</div>
+                        </div>
+                        <div class="era-telemetry-stat" style="background:rgba(99,102,241,0.12);border-color:rgba(99,102,241,0.35);display:flex;justify-content:space-between;align-items:center;">
+                            <div><div class="era-stat-label">b. No. of Total A/Cs</div><div style="font-size:0.72rem;opacity:0.75;">Tracked in Bank KYC Sheet</div></div>
+                            <div class="era-stat-val" style="font-size:1.35rem;color:inherit;">${d.kyc.total}</div>
+                        </div>
+                        <div class="era-telemetry-stat" style="background:rgba(244,63,94,0.12);border-color:rgba(244,63,94,0.35);display:flex;justify-content:space-between;align-items:center;">
+                            <div><div class="era-stat-label">c. Pending for KYC</div><div style="font-size:0.72rem;opacity:0.75;">Due &le;60d / Unupdated</div></div>
+                            <div class="era-stat-val" style="font-size:1.35rem;color:#f43f5e;">${d.kyc.pending}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    _renderExecCharts(d) {
+        if (!window.Chart) return;
+        const th = this._chartTheme();
+
+        // 1. Excess Balance (Top 5) — Horizontal Gradient Capsule Bar + Total Bal
+        const exEl = document.getElementById('bb-exec-ch-excess');
+        if (exEl && d.excess.top5.length) {
+            const ctx = exEl.getContext('2d');
+            const gEx = ctx.createLinearGradient(0, 0, 380, 0);
+            gEx.addColorStop(0, '#059669');
+            gEx.addColorStop(1, '#34d399');
+            this._charts.push(new window.Chart(exEl, {
+                type: 'bar',
+                data: {
+                    labels: d.excess.top5.map(r => `${r.bank} (${r.holder.split(' ')[0]})`),
+                    datasets: [
+                        { label: 'Excess Balance', data: d.excess.top5.map(r => r.excess), backgroundColor: gEx, borderRadius: 6, barPercentage: 0.72 },
+                        { label: 'Total Balance', data: d.excess.top5.map(r => r.bankBal), backgroundColor: 'rgba(99, 102, 241, 0.35)', borderRadius: 6, barPercentage: 0.72 }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { color: th.text, boxWidth: 10, font: { weight: '600', size: 10.5 } } } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: th.grid }, ticks: { color: th.muted, callback: (v) => this._fmtCompact(v), font: { size: 9.5 } } },
+                        y: { grid: { display: false }, ticks: { color: th.text, font: { weight: '700', size: 10 } } }
+                    }
+                }
+            }));
+        }
+
+        // 2. Short Balance (Top 5) — Rose-Crimson Gradient Horizontal Bar
+        const shEl = document.getElementById('bb-exec-ch-short');
+        if (shEl && d.short.top5.length) {
+            const ctx = shEl.getContext('2d');
+            const gSh = ctx.createLinearGradient(0, 0, 380, 0);
+            gSh.addColorStop(0, '#e11d48');
+            gSh.addColorStop(1, '#fb7185');
+            this._charts.push(new window.Chart(shEl, {
+                type: 'bar',
+                data: {
+                    labels: d.short.top5.map(r => `${r.bank} (${r.holder.split(' ')[0]})`),
+                    datasets: [
+                        { label: 'Shortfall Magnitude', data: d.short.top5.map(r => Math.abs(r.low)), backgroundColor: gSh, borderRadius: 6, barPercentage: 0.68 },
+                        { label: 'Account Balance (Abs)', data: d.short.top5.map(r => Math.abs(r.bankBal)), backgroundColor: 'rgba(245, 158, 11, 0.42)', borderRadius: 6, barPercentage: 0.68 }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { color: th.text, boxWidth: 10, font: { weight: '600', size: 10.5 } } } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: th.grid }, ticks: { color: th.muted, callback: (v) => this._fmtCompact(v), font: { size: 9.5 } } },
+                        y: { grid: { display: false }, ticks: { color: th.text, font: { weight: '700', size: 10 } } }
+                    }
+                }
+            }));
+        }
+
+        // 3. Reconciliation Difference — Books vs Bank Bars + Difference Area Line Combo
+        const rcEl = document.getElementById('bb-exec-ch-recon');
+        if (rcEl && d.recon.rows.length) {
+            const topRecon = d.recon.rows.slice(0, 6);
+            this._charts.push(new window.Chart(rcEl, {
+                type: 'bar',
+                data: {
+                    labels: topRecon.map(r => `${r.bank} (${r.holder.split(' ')[0]})`),
+                    datasets: [
+                        { label: 'Books Bal', data: topRecon.map(r => r.booksBal), backgroundColor: 'rgba(99, 102, 241, 0.85)', borderRadius: 5, order: 2 },
+                        { label: 'Bank Bal', data: topRecon.map(r => r.bankBal), backgroundColor: 'rgba(14, 165, 233, 0.85)', borderRadius: 5, order: 2 },
+                        { type: 'line', label: 'Recon Diff', data: topRecon.map(r => r.recon), borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.2)', fill: true, borderWidth: 2.5, pointRadius: 4, tension: 0.35, order: 1 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'top', labels: { color: th.text, boxWidth: 10, font: { weight: '600', size: 10 } } } },
+                    scales: {
+                        y: { grid: { color: th.grid }, ticks: { color: th.muted, callback: (v) => this._fmtCompact(v), font: { size: 9.5 } } },
+                        x: { grid: { display: false }, ticks: { color: th.text, maxRotation: 30, font: { size: 9, weight: '600' } } }
+                    }
+                }
+            }));
+        }
+
+        // 4. Other A/Cs — Polar Area Chart
+        const otEl = document.getElementById('bb-exec-ch-other');
+        if (otEl && d.other.rows.length) {
+            const topOther = d.other.rows.slice(0, 6);
+            const polColors = ['rgba(14,165,233,0.78)', 'rgba(99,102,241,0.78)', 'rgba(16,185,129,0.78)', 'rgba(245,158,11,0.78)', 'rgba(168,85,247,0.78)', 'rgba(20,184,166,0.78)'];
+            this._charts.push(new window.Chart(otEl, {
+                type: 'polarArea',
+                data: {
+                    labels: topOther.map(r => `${r.bank} (${r.holder.split(' ')[0]})`),
+                    datasets: [{
+                        label: 'Balance',
+                        data: topOther.map(r => Math.max(0, r.bankBal)),
+                        backgroundColor: topOther.map((_, i) => polColors[i % polColors.length]),
+                        borderColor: th.border,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { r: { grid: { color: th.grid }, ticks: { display: false } } },
+                    plugins: { legend: { position: 'right', labels: { color: th.text, boxWidth: 9, font: { size: 9.5, weight: '600' } } } }
+                }
+            }));
+        }
+
+        // 5. KYC Updation List — Semi-Circle Executive Compliance Gauge
+        const kyEl = document.getElementById('bb-exec-ch-kyc');
+        if (kyEl) {
+            const otherValid = Math.max(0, d.kyc.total - d.kyc.updatedLast10M - d.kyc.pending);
+            const kycGaugeText = {
+                id: 'bbExecKycGauge',
+                afterDraw(chart) {
+                    const meta = chart.getDatasetMeta(0);
+                    if (!meta?.data?.[0]) return;
+                    const { x, y } = meta.data[0];
+                    const c = chart.ctx;
+                    c.save();
+                    c.textAlign = 'center';
+                    c.fillStyle = th.muted;
+                    c.font = '700 10px Inter, system-ui, sans-serif';
+                    c.fillText('TOTAL TRACKED', x, y - 24);
+                    c.fillStyle = th.text;
+                    c.font = '800 20px Inter, system-ui, sans-serif';
+                    c.fillText(`${d.kyc.total} A/Cs`, x, y - 4);
+                    c.restore();
+                }
+            };
+            this._charts.push(new window.Chart(kyEl, {
+                type: 'doughnut',
+                plugins: [kycGaugeText],
+                data: {
+                    labels: [`Updated Last 10M (${d.kyc.updatedLast10M})`, `Other Valid (${otherValid})`, `Pending KYC (${d.kyc.pending})`],
+                    datasets: [{
+                        data: [d.kyc.updatedLast10M, otherValid, d.kyc.pending],
+                        backgroundColor: ['#10b981', '#6366f1', '#f43f5e'],
+                        borderColor: th.border,
+                        borderWidth: 2.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    rotation: -90,
+                    circumference: 180,
+                    cutout: '64%',
+                    plugins: { legend: { position: 'bottom', labels: { color: th.text, boxWidth: 10, font: { weight: '600', size: 10 } } } }
+                }
+            }));
+        }
     },
 
     _renderSnapView(body) {
@@ -956,17 +1605,58 @@ window.BankBalance = {
             return new Date(Math.round((val - 25569) * 86400 * 1000));
         }
         const s = String(val).trim();
+        if (!s || /^done$/i.test(s)) return null;
         const m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
         if (m) {
             const yr = m[3].length === 2 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
             return new Date(yr, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
         }
+        const mText = s.match(/^(\d{1,2})[-\/\s]([A-Za-z]{3,9})[-\/\s](\d{2,4})$/);
+        if (mText) {
+            const months = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+            const mon = months[mText[2].slice(0, 3).toLowerCase()];
+            if (mon !== undefined) {
+                const yr = mText[3].length === 2 ? 2000 + parseInt(mText[3], 10) : parseInt(mText[3], 10);
+                return new Date(yr, mon, parseInt(mText[1], 10));
+            }
+        }
         const d = new Date(s);
         return isNaN(d.getTime()) ? null : d;
     },
 
-    _buildGretexReportData() {
+    _getEffectiveKycRows() {
         const now = new Date();
+        const source = this._kycRecords.length
+            ? this._kycRecords
+            : this._records.map(r => ({
+                holder: r.holder,
+                accountNo: r.accountNo,
+                customerId: '',
+                bank: r.bank,
+                lastYearUpdate: '',
+                upcomingUpdate: r.kycDate,
+                kycStatus: r.kycDate ? 'Valid' : 'Pending',
+                remarks: r.remarks,
+                receipt: '',
+                status: r.kycDate ? 'Updated' : 'Pending'
+            }));
+
+        return source.map(r => {
+            const d = this._parseKycDate(r.upcomingUpdate);
+            const diffDays = d ? Math.ceil((d - now) / 86400000) : null;
+            const isDone = /^done$/i.test(String(r.upcomingUpdate || '').trim());
+            const isValidStatus = /^valid$/i.test(String(r.kycStatus || '').trim());
+            const isUpdated = /^updated$/i.test(String(r.status || '').trim());
+            let bucket = 'VALID';
+            if (!isUpdated || !isValidStatus) bucket = 'PENDING';
+            else if (isDone) bucket = 'DONE';
+            else if (diffDays !== null && diffDays <= 30) bucket = 'DUE_30';
+            else if (diffDays !== null && diffDays <= 60) bucket = 'DUE_60';
+            return { ...r, parsedDate: d, diffDays, bucket };
+        });
+    },
+
+    _buildGretexReportData() {
         const byHolder = (filterFn) => {
             const map = new Map();
             this._records.filter(filterFn).forEach(r => {
@@ -989,15 +1679,12 @@ window.BankBalance = {
         const reconRows = byHolder(r => Math.abs(r.reconDiff) > 0.01).sort((a, b) => Math.abs(b.recon) - Math.abs(a.recon));
 
         const kycMap = new Map();
-        this._records.forEach(r => {
-            const d = this._parseKycDate(r.kycDate);
-            if (!d) return;
-            const diffDays = Math.ceil((d - now) / 86400000);
-            if (diffDays <= 60) {
+        this._getEffectiveKycRows().forEach(r => {
+            if (r.bucket === 'DUE_30' || r.bucket === 'DUE_60' || r.bucket === 'PENDING') {
                 if (!kycMap.has(r.holder)) kycMap.set(r.holder, { holder: r.holder, count: 0, m2: 0, m1: 0 });
                 const k = kycMap.get(r.holder);
                 k.count += 1;
-                if (diffDays <= 30) k.m1 += 1;
+                if (r.bucket === 'DUE_30' || r.bucket === 'PENDING') k.m1 += 1;
                 else k.m2 += 1;
             }
         });
@@ -1320,6 +2007,239 @@ window.BankBalance = {
             Reconciliation_Diff: r.recon
         }));
         this.exportExcel(rows, `Bank_Balance_Pivot_${this._pivotBy}.xlsx`);
+    },
+
+    _renderKycView(body) {
+        const all = this._getEffectiveKycRows();
+        const total = all.length;
+        const validCnt = all.filter(r => r.bucket === 'VALID' || r.bucket === 'DONE').length;
+        const due30Cnt = all.filter(r => r.bucket === 'DUE_30').length;
+        const due60Cnt = all.filter(r => r.bucket === 'DUE_60').length;
+        const pendingCnt = all.filter(r => r.bucket === 'PENDING').length;
+
+        // Bank-wise KYC summary
+        const bankMap = new Map();
+        all.forEach(r => {
+            if (!bankMap.has(r.bank)) bankMap.set(r.bank, { bank: r.bank, total: 0, valid: 0, due60: 0, pending: 0 });
+            const b = bankMap.get(r.bank);
+            b.total += 1;
+            if (r.bucket === 'VALID' || r.bucket === 'DONE') b.valid += 1;
+            else if (r.bucket === 'DUE_30' || r.bucket === 'DUE_60') b.due60 += 1;
+            else b.pending += 1;
+        });
+        const bankSummary = Array.from(bankMap.values()).sort((a, b) => b.total - a.total);
+
+        // Entity-wise KYC summary
+        const holderMap = new Map();
+        all.forEach(r => {
+            if (!holderMap.has(r.holder)) holderMap.set(r.holder, { holder: r.holder, total: 0, valid: 0, due60: 0, pending: 0 });
+            const h = holderMap.get(r.holder);
+            h.total += 1;
+            if (r.bucket === 'VALID' || r.bucket === 'DONE') h.valid += 1;
+            else if (r.bucket === 'DUE_30' || r.bucket === 'DUE_60') h.due60 += 1;
+            else h.pending += 1;
+        });
+        const holderSummary = Array.from(holderMap.values()).sort((a, b) => b.total - a.total);
+
+        const kf = this._kycFilters;
+        const banks = [...new Set(all.map(r => r.bank))].sort();
+        const q = (kf.search || '').trim().toLowerCase();
+        const filtered = all.filter(r => {
+            if (kf.bank !== 'ALL' && r.bank !== kf.bank) return false;
+            if (kf.window !== 'ALL' && r.bucket !== kf.window) return false;
+            if (q) {
+                const hay = `${r.holder} ${r.bank} ${r.accountNo} ${r.customerId} ${r.kycStatus} ${r.status} ${r.remarks}`.toLowerCase();
+                if (!hay.includes(q)) return false;
+            }
+            return true;
+        });
+        const maskAcc = (a) => this._showFullAcc ? a : (a.length > 4 ? `••••${a.slice(-4)}` : a);
+
+        body.innerHTML = `
+            <div class="bb-card" style="margin-bottom:14px;">
+                <div class="bb-card-head" style="flex-wrap:wrap;">
+                    <div>
+                        <h4 class="bb-card-title"><i class="fas fa-id-card-clip text-primary"></i> Bank KYC Compliance &amp; Renewal Intelligence</h4>
+                        <div style="font-size:0.74rem;opacity:0.75;margin-top:2px;">
+                            Source: <strong>${this._esc(this._kycMeta.source || (this._kycRecords.length ? 'Google Sheet (Bank KYC Update)' : 'Bank Data Fallback'))}</strong>
+                            ${this._kycMeta.syncedAt ? ` &bull; Synced: ${this._esc(this._kycMeta.syncedAt)}` : ''}
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn btn-sm btn-primary" onclick="BankBalance.syncKycSheet(false)"><i class="fas fa-sync"></i> Sync Bank KYC Sheet</button>
+                        <button class="btn btn-sm btn-success" onclick="BankBalance.exportKycExcel()"><i class="fas fa-file-excel"></i> Export KYC Report</button>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;">
+                    <div class="bb-kpi-card" style="background:linear-gradient(135deg,#334155,#1e293b);padding:12px 14px;">
+                        <div class="bb-kpi-label">Total KYC Accounts</div>
+                        <div class="bb-kpi-val">${total}</div>
+                        <div class="bb-kpi-sub">${bankSummary.length} Banks Tracked</div>
+                    </div>
+                    <div class="bb-kpi-card" style="background:linear-gradient(135deg,#059669,#10b981);padding:12px 14px;">
+                        <div class="bb-kpi-label">Valid &amp; Updated</div>
+                        <div class="bb-kpi-val">${validCnt}</div>
+                        <div class="bb-kpi-sub">${total ? Math.round((validCnt / total) * 100) : 0}% Compliant</div>
+                    </div>
+                    <div class="bb-kpi-card" style="background:linear-gradient(135deg,#e11d48,#f43f5e);padding:12px 14px;">
+                        <div class="bb-kpi-label">Due &le; 30 Days / Overdue</div>
+                        <div class="bb-kpi-val">${due30Cnt}</div>
+                        <div class="bb-kpi-sub">Immediate Renewal</div>
+                    </div>
+                    <div class="bb-kpi-card" style="background:linear-gradient(135deg,#d97706,#f59e0b);padding:12px 14px;">
+                        <div class="bb-kpi-label">Due 31–60 Days</div>
+                        <div class="bb-kpi-val">${due60Cnt}</div>
+                        <div class="bb-kpi-sub">Upcoming Pipeline</div>
+                    </div>
+                    <div class="bb-kpi-card" style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:12px 14px;">
+                        <div class="bb-kpi-label">Pending / Unupdated</div>
+                        <div class="bb-kpi-val">${pendingCnt}</div>
+                        <div class="bb-kpi-sub">Action Required</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bb-gretex-grid" style="margin-bottom:14px;">
+                <div class="bb-card">
+                    <div class="bb-card-head">
+                        <h4 class="bb-card-title"><i class="fas fa-landmark text-primary"></i> Bank-wise KYC Status</h4>
+                        <span class="bb-pill info">${bankSummary.length} Banks</span>
+                    </div>
+                    <div class="bb-table-wrap" style="max-height:260px;">
+                        <table class="bb-table">
+                            <thead>
+                                <tr>
+                                    <th>Bank Name</th>
+                                    <th class="num">Total A/C</th>
+                                    <th class="num">Valid</th>
+                                    <th class="num">Due &le;60d</th>
+                                    <th class="num">Pending</th>
+                                    <th class="num">Health %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${bankSummary.map(b => {
+                                    const pct = b.total ? Math.round((b.valid / b.total) * 100) : 0;
+                                    return `
+                                        <tr>
+                                            <td><strong>${this._esc(b.bank)}</strong></td>
+                                            <td class="num"><span class="bb-pill info">${b.total}</span></td>
+                                            <td class="num"><span class="bb-pill ok">${b.valid}</span></td>
+                                            <td class="num">${b.due60 > 0 ? `<span class="bb-pill warn">${b.due60}</span>` : '0'}</td>
+                                            <td class="num">${b.pending > 0 ? `<span class="bb-pill bad">${b.pending}</span>` : '0'}</td>
+                                            <td class="num"><strong>${pct}%</strong></td>
+                                        </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bb-card">
+                    <div class="bb-card-head">
+                        <h4 class="bb-card-title"><i class="fas fa-building text-success"></i> Entity-wise KYC Status</h4>
+                        <span class="bb-pill info">${holderSummary.length} Entities</span>
+                    </div>
+                    <div class="bb-table-wrap" style="max-height:260px;">
+                        <table class="bb-table">
+                            <thead>
+                                <tr>
+                                    <th>Account Holder Name</th>
+                                    <th class="num">Total A/C</th>
+                                    <th class="num">Valid</th>
+                                    <th class="num">Due &le;60d</th>
+                                    <th class="num">Pending</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${holderSummary.map(h => `
+                                    <tr>
+                                        <td><strong>${this._esc(h.holder)}</strong></td>
+                                        <td class="num"><span class="bb-pill info">${h.total}</span></td>
+                                        <td class="num"><span class="bb-pill ok">${h.valid}</span></td>
+                                        <td class="num">${h.due60 > 0 ? `<span class="bb-pill warn">${h.due60}</span>` : '0'}</td>
+                                        <td class="num">${h.pending > 0 ? `<span class="bb-pill bad">${h.pending}</span>` : '0'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bb-card">
+                <div class="bb-filter-bar">
+                    <input type="text" class="bb-input" placeholder="Search holder, bank, account no, customer ID, remarks..." value="${this._esc(kf.search)}" oninput="BankBalance._kycFilters.search=this.value;BankBalance._renderCurrent();">
+                    <select class="bb-select" onchange="BankBalance._kycFilters.bank=this.value;BankBalance._renderCurrent();">
+                        <option value="ALL">All Banks (${banks.length})</option>
+                        ${banks.map(b => `<option value="${this._esc(b)}" ${kf.bank === b ? 'selected' : ''}>${this._esc(b)}</option>`).join('')}
+                    </select>
+                    <select class="bb-select" onchange="BankBalance._kycFilters.window=this.value;BankBalance._renderCurrent();">
+                        <option value="ALL" ${kf.window === 'ALL' ? 'selected' : ''}>All KYC Status (${total})</option>
+                        <option value="VALID" ${kf.window === 'VALID' ? 'selected' : ''}>Valid &amp; Updated</option>
+                        <option value="DONE" ${kf.window === 'DONE' ? 'selected' : ''}>Done</option>
+                        <option value="DUE_30" ${kf.window === 'DUE_30' ? 'selected' : ''}>Due &le; 30d / Overdue</option>
+                        <option value="DUE_60" ${kf.window === 'DUE_60' ? 'selected' : ''}>Due 31–60 Days</option>
+                        <option value="PENDING" ${kf.window === 'PENDING' ? 'selected' : ''}>Pending / Action</option>
+                    </select>
+                    <button class="btn btn-sm btn-secondary" onclick="BankBalance._showFullAcc=!BankBalance._showFullAcc;BankBalance._renderCurrent();">
+                        <i class="fas fa-${this._showFullAcc ? 'eye-slash' : 'eye'}"></i> ${this._showFullAcc ? 'Mask A/C' : 'Show A/C'}
+                    </button>
+                </div>
+
+                <div class="bb-table-wrap" style="max-height:420px;">
+                    <table class="bb-table">
+                        <thead>
+                            <tr>
+                                <th>Account Holder Name</th>
+                                <th>Bank Name</th>
+                                <th>Account No.</th>
+                                <th>Customer ID</th>
+                                <th>Last Year Update</th>
+                                <th>Upcoming Update</th>
+                                <th>KYC Status</th>
+                                <th>Status</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filtered.length ? filtered.map(r => {
+                                const badgeCls = (r.bucket === 'VALID' || r.bucket === 'DONE') ? 'ok' : (r.bucket === 'DUE_60' ? 'warn' : 'bad');
+                                return `
+                                    <tr>
+                                        <td><strong>${this._esc(r.holder)}</strong></td>
+                                        <td>${this._esc(r.bank)}</td>
+                                        <td style="font-family:monospace;">${this._esc(maskAcc(r.accountNo))}</td>
+                                        <td>${this._esc(r.customerId || '—')}</td>
+                                        <td>${this._esc(r.lastYearUpdate || '—')}</td>
+                                        <td><strong>${this._esc(r.upcomingUpdate || '—')}</strong></td>
+                                        <td><span class="bb-pill ${badgeCls}">${this._esc(r.kycStatus)}</span></td>
+                                        <td><span class="bb-pill ${/^updated$/i.test(r.status) ? 'ok' : 'bad'}">${this._esc(r.status)}</span></td>
+                                        <td>${this._esc(r.remarks || '—')}</td>
+                                    </tr>`;
+                            }).join('') : '<tr><td colspan="9" style="text-align:center;padding:20px;">No KYC records match your filter.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    },
+
+    exportKycExcel() {
+        const rows = this._getEffectiveKycRows().map(r => ({
+            Account_Holder_Name: r.holder,
+            Account_Number: r.accountNo,
+            Customer_ID: r.customerId,
+            Bank_Name: r.bank,
+            Last_Year_Update: r.lastYearUpdate,
+            Upcoming_Update: r.upcomingUpdate,
+            KYC_Status: r.kycStatus,
+            Status: r.status,
+            Remarks: r.remarks,
+            Receipt: r.receipt
+        }));
+        this.exportExcel(rows, `Bank_KYC_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
     },
 
     _renderTableView(body) {
