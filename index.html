@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/era-ai.css">
+    <link rel="stylesheet" href="css/bank-balance.css">
     <link rel="stylesheet" href="css/dark-theme.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💳</text></svg>">
 </head>
@@ -163,9 +164,29 @@
     <div id="app" class="hidden">
         <!-- ===== Sidebar ===== -->
         <aside id="sidebar">
-            <div class="sidebar-header">
-                <div class="sidebar-logo"><i class="fas fa-credit-card"></i></div>
-                <span class="sidebar-title">CCMS</span>
+            <div class="sidebar-header" onclick="App.toggleAppSwitcher(event)" title="Switch App: Credit Card / Bank Balance">
+                <div class="sidebar-logo" id="sidebar-app-logo"><i class="fas fa-credit-card"></i></div>
+                <span class="sidebar-title" id="sidebar-app-title">CCMS</span>
+                <i class="fas fa-chevron-down sidebar-switch-caret"></i>
+                <div id="ccms-app-switcher" class="ccms-app-switcher hidden" onclick="event.stopPropagation()">
+                    <div class="ccms-switcher-label">Switch Application</div>
+                    <button type="button" class="ccms-switcher-item active" data-app="ccms" onclick="App.switchApp('ccms')">
+                        <span class="ccms-switcher-icon cc"><i class="fas fa-credit-card"></i></span>
+                        <span class="ccms-switcher-meta">
+                            <span class="ccms-switcher-name" style="display:block;">Credit Card Suite</span>
+                            <span class="ccms-switcher-sub" style="display:block;">Cards, Statements &amp; Zoho</span>
+                        </span>
+                        <span class="ccms-switcher-badge active">Active</span>
+                    </button>
+                    <button type="button" class="ccms-switcher-item" data-app="bankbalance" onclick="App.switchApp('bankbalance')">
+                        <span class="ccms-switcher-icon bank"><i class="fas fa-landmark"></i></span>
+                        <span class="ccms-switcher-meta">
+                            <span class="ccms-switcher-name" style="display:block;">Bank Balance App</span>
+                            <span class="ccms-switcher-sub" style="display:block;">Table, Pivot, Charts &amp; Snap</span>
+                        </span>
+                        <span class="ccms-switcher-badge new">Bank</span>
+                    </button>
+                </div>
             </div>
 
             <nav class="sidebar-nav">
@@ -384,6 +405,7 @@
     <script src="js/group-report.js"></script>
     <script src="js/premium-suite.js"></script>
     <script src="js/downlodedash.js"></script>
+    <script src="js/bank-balance.js"></script>
     <script src="js/users.js"></script>
     <script src="js/logs.js"></script>
     <script src="js/data_import.js"></script>
